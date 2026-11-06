@@ -38,7 +38,7 @@ toolshed does that part for you:
 brew install bartdegoede/tap/toolshed
 ```
 
-or with Go:
+or with Go (1.25 or newer):
 
 ```sh
 go install github.com/bartdegoede/toolshed/cmd/toolshed@latest

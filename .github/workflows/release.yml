@@ -16,7 +16,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # Ship binaries built with the latest Go (security fixes); go.mod
+          # only sets the minimum for `go install`.
+          go-version: stable
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"

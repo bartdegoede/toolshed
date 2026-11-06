@@ -13,12 +13,15 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        # Oldest supported (the go.mod minimum) and the latest release.
+        go: ["1.25.x", stable]
     runs-on: ${{ matrix.os }}
+    name: test (${{ matrix.os }}, go ${{ matrix.go }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: ${{ matrix.go }}
       - uses: extractions/setup-just@v2
 
       - name: gofmt

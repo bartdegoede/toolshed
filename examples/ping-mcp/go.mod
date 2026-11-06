@@ -1,6 +1,6 @@
 module github.com/bartdegoede/toolshed/examples/ping-mcp
 
-go 1.27.2
+go 1.25.9
 
 require github.com/modelcontextprotocol/go-sdk v1.8.0
 
