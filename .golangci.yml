@@ -1,0 +1,48 @@
+# golangci-lint v2 config for toolshed.
+# The same config applies whether someone runs it locally or in CI.
+#
+# Default linter set (standard): govet, ineffassign, staticcheck, unused, errcheck.
+# This is the golangci-lint team's recommendation and covers the highest-value
+# checks. We tune two things:
+#
+#   1. errcheck is told to skip (*os.File).Close — a deferred Close after a
+#      successful read is an established Go idiom where returned errors are
+#      almost never actionable. Linter noise on `defer f.Close()` is what
+#      turns contributors off from errcheck entirely.
+#
+#   2. Test files are exempted from errcheck for os.MkdirAll / os.RemoveAll.
+#      The explicit `_ =` pattern adds noise without catching real bugs — a
+#      test that can't create its tempdir will fail on the next filesystem
+#      call anyway. Non-test code still has full errcheck coverage.
+#
+# Everything else is default. If a new linter is added to "standard", we pick
+# it up automatically on the next golangci-lint upgrade.
+
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  default: standard
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*os.File).Close
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+
+  exclusions:
+    # Apply the test-file tolerations below on top of golangci-lint's default
+    # preset exclusions (generated code, vendor, etc).
+    rules:
+      # Exempt test files from errcheck entirely. Tests routinely do best-
+      # effort setup (MkdirAll, WriteFile, Setenv) where the `_ =` pattern
+      # adds noise without catching real bugs — a test that can't create
+      # its tempdir will fail on the next filesystem call anyway. Non-test
+      # code still has full errcheck coverage.
+      - path: _test\.go
+        linters:
+          - errcheck

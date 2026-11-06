@@ -1,0 +1,294 @@
+// Package shed implements toolshed's operations (install, uninstall, exec,
+// probe) on top of the registry, the client adapters and the keyring. The CLI
+// and the TUI are both thin front ends over this package.
+package shed
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/bartdegoede/toolshed/internal/clients"
+	"github.com/bartdegoede/toolshed/internal/registry"
+	"github.com/bartdegoede/toolshed/internal/secrets"
+)
+
+// Values maps input keys to the values the user chose.
+type Values map[string]string
+
+// Resolve fills in input values from, in order: explicit overrides, the
+// currently installed config (so updates keep earlier choices), the keyring
+// (secrets), and defaults. It returns the values plus the required inputs
+// that are still missing, which the caller should prompt for.
+func Resolve(e *registry.Entry, inst *clients.Installation, overrides Values) (Values, []registry.Input) {
+	vals := Values{}
+	var missing []registry.Input
+	for _, in := range e.Inputs {
+		v := overrides[in.Key]
+		if v == "" && inst != nil {
+			v = inst.Config.Env[in.Key] // only present for non-secrets (or keyring-less installs)
+		}
+		if v == "" && in.Secret && secrets.Available() {
+			v, _ = secrets.Get(e.SecretGroup(in), in.Key)
+		}
+		if v == "" {
+			v = in.Default
+		}
+		if v != "" {
+			vals[in.Key] = v
+		} else if !in.Optional {
+			missing = append(missing, in)
+		}
+	}
+	return vals, missing
+}
+
+// InstallOptions controls where a tool is installed.
+type InstallOptions struct {
+	Scope   string   // "user" (default) or "project"; project applies to Claude only
+	Clients []string // targets; empty means every available client the entry supports
+}
+
+// Targets returns the clients an install would write to.
+func Targets(e *registry.Entry, opts InstallOptions) []string {
+	want := opts.Clients
+	if len(want) == 0 {
+		want = clients.All
+	}
+	var out []string
+	for _, c := range want {
+		if !e.SupportsClient(c) || !clients.Available(c) {
+			continue
+		}
+		if opts.Scope == "project" && c == clients.Codex {
+			continue // Codex has no project-scoped servers
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// Install stores secrets, builds the client config and registers the tool
+// with every target client. It fails if any client fails.
+func Install(e *registry.Entry, vals Values, opts InstallOptions) ([]string, error) {
+	if opts.Scope == "" {
+		opts.Scope = "user"
+	}
+	targets := Targets(e, opts)
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("no target client: install Claude Code or Codex (or check %s's clients list)", e.ID)
+	}
+	if err := CheckCommand(e); err != nil {
+		return nil, err
+	}
+	for _, in := range e.Inputs {
+		if vals[in.Key] == "" && !in.Optional {
+			return nil, fmt.Errorf("%s needs a value for %s", e.ID, in.Key)
+		}
+	}
+	cfg, err := BuildConfig(e, vals)
+	if err != nil {
+		return nil, err
+	}
+	var errs []error
+	var done []string
+	for _, c := range targets {
+		if err := clients.Register(c, e.ID, cfg, opts.Scope); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", c, err))
+			continue
+		}
+		done = append(done, c)
+	}
+	return done, errors.Join(errs...)
+}
+
+// BuildConfig produces the client registration for an entry. Secret values
+// are written to the keyring and the server is wrapped in `toolshed exec`;
+// without a keyring they fall back to plain env vars in the client config.
+func BuildConfig(e *registry.Entry, vals Values) (clients.Config, error) {
+	if e.IsRemote() {
+		return clients.Config{Type: "http", URL: e.URL, HeadersHelper: e.HeaderCmd}, nil
+	}
+	env := map[string]string{}
+	for k, v := range e.Env {
+		env[k] = v
+	}
+	var refs []SecretRef
+	for _, in := range e.Inputs {
+		v := vals[in.Key]
+		if !in.Secret || !secrets.Available() {
+			if v != "" {
+				env[in.Key] = v
+			}
+			continue
+		}
+		refs = append(refs, SecretRef{Key: in.Key, Group: e.SecretGroup(in)})
+		if v != "" {
+			if err := secrets.Set(e.SecretGroup(in), in.Key, v); err != nil {
+				return clients.Config{}, err
+			}
+		}
+	}
+	cfg := clients.Config{Type: "stdio", Command: e.Command, Args: e.Args, Env: env}
+	if len(refs) > 0 {
+		self, err := SelfPath()
+		if err != nil {
+			return clients.Config{}, err
+		}
+		cfg.Command, cfg.Args = self, ExecArgs(e, refs)
+	}
+	if len(cfg.Env) == 0 {
+		cfg.Env = nil
+	}
+	return cfg, nil
+}
+
+// CheckCommand verifies a local server's command can be found, so a typo
+// fails at install instead of as a silent "failed to connect" in the client.
+func CheckCommand(e *registry.Entry) error {
+	if e.IsRemote() {
+		return nil
+	}
+	if _, err := exec.LookPath(e.Command); err != nil {
+		return fmt.Errorf("%s: command %q not found on PATH — install it first", e.ID, e.Command)
+	}
+	return nil
+}
+
+// Uninstall removes the tool from every client it's registered in. With
+// purge it also deletes its secrets, except groups still used by another
+// installed tool.
+func Uninstall(reg *registry.Registry, e *registry.Entry, inst *clients.Installation, purge bool) error {
+	var errs []error
+	if inst != nil {
+		if inst.ClaudeScope != "" {
+			scope := inst.ClaudeScope
+			if err := clients.Unregister(clients.Claude, e.ID, scope); err != nil {
+				errs = append(errs, fmt.Errorf("claude: %w", err))
+			}
+		}
+		if inst.Codex {
+			if err := clients.Unregister(clients.Codex, e.ID, ""); err != nil {
+				errs = append(errs, fmt.Errorf("codex: %w", err))
+			}
+		}
+	}
+	if purge && secrets.Available() {
+		installed := clients.Detect()
+		for _, in := range e.Inputs {
+			if !in.Secret || groupInUse(reg, installed, e.ID, e.SecretGroup(in)) {
+				continue
+			}
+			if err := secrets.Delete(e.SecretGroup(in), in.Key); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func groupInUse(reg *registry.Registry, installed map[string]*clients.Installation, self, group string) bool {
+	for _, other := range reg.Entries {
+		if other.ID == self || installed[other.ID] == nil {
+			continue
+		}
+		for _, in := range other.Inputs {
+			if in.Secret && other.SecretGroup(in) == group {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SecretRef names a keyring entry to load into the environment.
+type SecretRef struct{ Key, Group string }
+
+// ExecArgs builds the self-contained arguments for `toolshed exec`:
+//
+//	exec <id> --secret KEY=group ... -- <command> <args...>
+//
+// Everything exec needs is in the arguments, so a registered server keeps
+// working even if the registry file moves or isn't visible to the client.
+func ExecArgs(e *registry.Entry, refs []SecretRef) []string {
+	args := []string{"exec", e.ID}
+	for _, r := range refs {
+		args = append(args, "--secret", r.Key+"="+r.Group)
+	}
+	return append(append(args, "--", e.Command), e.Args...)
+}
+
+// ExecEnv returns the environment for running a server: the current
+// environment plus extra fixed values, with secrets from the keyring filled
+// in for any key not already set (explicit env always wins).
+func ExecEnv(extra map[string]string, refs []SecretRef) []string {
+	env := os.Environ()
+	have := map[string]bool{}
+	for _, kv := range env {
+		have[kv[:strings.IndexByte(kv+"=", '=')]] = true
+	}
+	add := func(k, v string) {
+		if !have[k] && v != "" {
+			env = append(env, k+"="+v)
+			have[k] = true
+		}
+	}
+	for k, v := range extra {
+		add(k, v)
+	}
+	if secrets.Available() {
+		for _, r := range refs {
+			v, _ := secrets.Get(r.Group, r.Key)
+			add(r.Key, v)
+		}
+	}
+	return env
+}
+
+// EntryEnv is ExecEnv for running an entry directly (used by Probe): fixed
+// env, input defaults, and the entry's secrets from the keyring.
+func EntryEnv(e *registry.Entry) []string {
+	extra := map[string]string{}
+	for k, v := range e.Env {
+		extra[k] = v
+	}
+	var refs []SecretRef
+	for _, in := range e.Inputs {
+		if in.Secret {
+			refs = append(refs, SecretRef{Key: in.Key, Group: e.SecretGroup(in)})
+		} else if in.Default != "" {
+			extra[in.Key] = in.Default
+		}
+	}
+	return ExecEnv(extra, refs)
+}
+
+// SelfPath is the absolute path of the running toolshed binary, with
+// Homebrew's versioned Cellar path rewritten to the stable opt symlink so
+// registrations survive `brew upgrade`.
+func SelfPath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if exe, err = filepath.EvalSymlinks(exe); err != nil {
+		return "", err
+	}
+	return CellarToOpt(exe), nil
+}
+
+// CellarToOpt rewrites /…/Cellar/<formula>/<version>/rest to /…/opt/<formula>/rest.
+func CellarToOpt(p string) string {
+	i := strings.Index(p, "/Cellar/")
+	if i < 0 {
+		return p
+	}
+	parts := strings.SplitN(p[i+len("/Cellar/"):], "/", 3)
+	if len(parts) < 3 {
+		return p
+	}
+	return filepath.Join(p[:i], "opt", parts[0], parts[2])
+}

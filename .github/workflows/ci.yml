@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: extractions/setup-just@v2
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: go mod tidy
+        run: |
+          go mod tidy && git diff --exit-code go.mod go.sum
+          (cd examples/ping-mcp && go mod tidy) && git diff --exit-code examples/ping-mcp/go.mod examples/ping-mcp/go.sum
+      - name: go vet
+        run: go vet ./... && (cd examples/ping-mcp && go vet ./...)
+      - name: Unit tests
+        run: just test
+      - name: E2E tests
+        run: just test-e2e
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.1

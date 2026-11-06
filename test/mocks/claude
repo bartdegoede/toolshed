@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Mock `claude` CLI for the e2e suite. Implements just enough of
+# `claude mcp add-json|remove` to write the same files the real CLI does:
+#   -s user    → ~/.claude.json  .mcpServers
+#   -s project → <git root>/.mcp.json .mcpServers
+set -euo pipefail
+
+[[ "${1:-}" == "--version" ]] && { echo "2.0.0 (mock)"; exit 0; }
+[[ "${1:-}" == "mcp" ]] || { echo "mock claude: unsupported: $*" >&2; exit 1; }
+
+sub="${2:-}"; name="${3:-}"; shift 3 || true
+json=""
+if [[ "$sub" == "add-json" ]]; then json="${1:-}"; shift || true; fi
+scope="local"
+while [[ $# -gt 0 ]]; do
+    case "$1" in -s|--scope) scope="$2"; shift 2 ;; *) shift ;; esac
+done
+
+case "$scope" in
+    user) file="$HOME/.claude.json" ;;
+    project) file="$(git rev-parse --show-toplevel)/.mcp.json" ;;
+    *) echo "mock claude: scope $scope not supported" >&2; exit 1 ;;
+esac
+[[ -f "$file" ]] || echo '{"mcpServers":{}}' > "$file"
+tmp="$(mktemp)"
+
+case "$sub" in
+    add-json)
+        jq --arg n "$name" --argjson c "$json" '.mcpServers[$n] = $c' "$file" > "$tmp" && mv "$tmp" "$file"
+        echo "Added $name" ;;
+    remove)
+        if ! jq -e --arg n "$name" '.mcpServers | has($n)' "$file" >/dev/null; then
+            rm -f "$tmp"; echo "No MCP server found with name: $name" >&2; exit 1
+        fi
+        jq --arg n "$name" 'del(.mcpServers[$n])' "$file" > "$tmp" && mv "$tmp" "$file"
+        echo "Removed $name" ;;
+    *) rm -f "$tmp"; echo "mock claude: unsupported mcp $sub" >&2; exit 1 ;;
+esac

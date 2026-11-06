@@ -1,0 +1,114 @@
+package cli
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/bartdegoede/toolshed/internal/registry"
+	"github.com/bartdegoede/toolshed/internal/secrets"
+)
+
+// session starts `toolshed mcp` in-process with an isolated HOME, toolshed
+// home and mock claude/codex CLIs, and returns a connected client.
+func session(t *testing.T) *mcp.ClientSession {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("TOOLSHED_HOME", filepath.Join(home, ".toolshed"))
+	t.Setenv("TOOLSHED_REGISTRY", "")
+	mocks, _ := filepath.Abs("../../test/mocks")
+	t.Setenv("PATH", mocks+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Chdir(home)
+	secrets.UseMockForTest(false)
+
+	ctx := context.Background()
+	st, ct := mcp.NewInMemoryTransports()
+	ss, err := newMCPServer().Connect(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ss.Close() })
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cs.Close() })
+	return cs
+}
+
+func callTool(t *testing.T, cs *mcp.ClientSession, name string, args map[string]any) (string, bool) {
+	t.Helper()
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.Content[0].(*mcp.TextContent).Text, res.IsError
+}
+
+func TestMCPAddAndInstall(t *testing.T) {
+	cs := session(t)
+
+	out, isErr := callTool(t, cs, "add_server", map[string]any{"kind": "url", "source": "https://mcp.docs.example.com/mcp"})
+	if isErr || !strings.Contains(out, "Added docs") {
+		t.Fatalf("add_server: %s", out)
+	}
+	reg, _ := registry.Load()
+	if e := reg.Get("docs"); e == nil || e.Source != registry.SourceUser {
+		t.Fatalf("expected a user entry, got %+v", e)
+	}
+
+	out, isErr = callTool(t, cs, "install_server", map[string]any{"id": "docs"})
+	if isErr || !strings.Contains(out, "Installed docs into claude") {
+		t.Fatalf("install_server: %s", out)
+	}
+	data, _ := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".claude.json"))
+	if !strings.Contains(string(data), "mcp.docs.example.com") {
+		t.Fatalf("not registered with claude: %s", data)
+	}
+
+	out, _ = callTool(t, cs, "list_servers", nil)
+	if !strings.Contains(out, `"installed_in": [`+"\n"+`      "claude"`) {
+		t.Fatalf("list_servers should show docs installed:\n%s", out)
+	}
+
+	out, isErr = callTool(t, cs, "uninstall_server", map[string]any{"id": "docs"})
+	if isErr || !strings.Contains(out, "Uninstalled") {
+		t.Fatalf("uninstall_server: %s", out)
+	}
+}
+
+func TestMCPNeverTakesSecrets(t *testing.T) {
+	cs := session(t)
+
+	out, isErr := callTool(t, cs, "add_server", map[string]any{"kind": "command", "source": "sh", "id": "jira", "secret_env": []string{"JIRA_TOKEN"}})
+	if isErr || !strings.Contains(out, "toolshed install jira") {
+		t.Fatalf("add_server with secrets should point the user to the terminal: %s", out)
+	}
+	out, isErr = callTool(t, cs, "install_server", map[string]any{"id": "jira", "values": map[string]any{"JIRA_TOKEN": "oops"}})
+	if !isErr || !strings.Contains(out, "never pass secrets") {
+		t.Fatalf("secret values must be refused: %s", out)
+	}
+	out, isErr = callTool(t, cs, "install_server", map[string]any{"id": "jira"})
+	if !isErr || !strings.Contains(out, "needs JIRA_TOKEN") {
+		t.Fatalf("missing secret should explain itself: %s", out)
+	}
+}
+
+func TestMCPErrors(t *testing.T) {
+	cs := session(t)
+	if out, isErr := callTool(t, cs, "add_server", map[string]any{"kind": "teleport", "source": "x"}); !isErr {
+		t.Fatalf("bad kind should fail: %s", out)
+	}
+	if out, isErr := callTool(t, cs, "add_server", map[string]any{"kind": "npx", "source": "@modelcontextprotocol/server-memory"}); !isErr || !strings.Contains(out, "built-in") {
+		t.Fatalf("re-adding a built-in should say so: %s", out)
+	}
+	if out, isErr := callTool(t, cs, "install_server", map[string]any{"id": "nope"}); !isErr {
+		t.Fatalf("unknown id should fail: %s", out)
+	}
+}

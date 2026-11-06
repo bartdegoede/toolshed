@@ -1,0 +1,44 @@
+# Release: push a tag (git tag v0.1.0 && git push origin v0.1.0) and the
+# release workflow runs this. The Homebrew step is optional: it only runs when
+# a HOMEBREW_TAP_TOKEN secret (write access to bartdegoede/homebrew-tap) exists.
+version: 2
+
+project_name: toolshed
+
+builds:
+  - id: toolshed
+    main: ./cmd/toolshed
+    binary: toolshed
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags: ["-s -w -X main.Version={{.Version}}"]
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:", "^chore:"]
+
+homebrew_casks:
+  - name: toolshed
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    repository:
+      owner: bartdegoede
+      name: homebrew-tap
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+    homepage: https://github.com/bartdegoede/toolshed
+    description: Add any MCP server to Claude Code and Codex in seconds
+    license: MIT
+    # Unsigned binaries get quarantined by macOS Gatekeeper; clear the flag.
+    hooks:
+      post:
+        install_steps: |
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/toolshed"]

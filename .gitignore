@@ -1,0 +1,7 @@
+/toolshed
+/dist/
+examples/*/dist/
+coverage.out
+.DS_Store
+dist/
+SHIPPING.md

@@ -1,0 +1,81 @@
+# Built-in examples, compiled into toolshed.
+#
+# Your own tools live in ~/.toolshed/registry.yaml (create entries with
+# `toolshed add`). They are listed above these examples, override any example
+# with the same id, and `examples: false` in that file hides this list.
+#
+# Schema: docs/registry.md
+
+tools:
+  # toolshed itself, as an MCP server: your agent can find, add and install
+  # servers on request ("add the DeepWiki server for this repo").
+  - id: toolshed
+    name: Toolshed
+    description: |
+      Let your agent find, add and install MCP servers itself.
+      Secrets are never passed through the chat: it sends you to the TUI.
+    command: toolshed
+    args: [mcp]
+
+  # A local server with a secret, prompted at install and kept in the
+  # keyring. Install the binary with:
+  #   go install github.com/bartdegoede/toolshed/examples/ping-mcp@latest
+  - id: ping
+    name: Ping
+    description: |
+      Push notifications to your phone via ntfy: "ping me when the tests pass".
+      Subscribe to a private topic in the ntfy app (iOS/Android), then enter it here.
+    command: ping-mcp
+    inputs:
+      - key: NTFY_TOPIC
+        label: ntfy topic
+        help: The topic you subscribed to in the ntfy app. Make it long and random; anyone who knows it can message you.
+        secret: true
+
+  # Published packages run through npx / uvx.
+  - id: memory
+    name: Memory
+    description: |
+      A persistent knowledge graph your agent can read and write.
+      Reference server from the Model Context Protocol project.
+    command: npx
+    args: [-y, "@modelcontextprotocol/server-memory"]
+
+  - id: fetch
+    name: Fetch
+    description: |
+      Fetch web pages as markdown.
+      Reference server from the Model Context Protocol project.
+    command: uvx
+    args: [mcp-server-fetch]
+
+  - id: filesystem
+    name: Filesystem
+    description: |
+      Read and write files in the directory the agent was started in.
+    command: npx
+    args: [-y, "@modelcontextprotocol/server-filesystem", "."]
+
+  # Remote servers: just a URL.
+  - id: context7
+    name: Context7
+    description: |
+      Up-to-date library documentation and code examples, pulled into context.
+    url: https://mcp.context7.com/mcp
+
+  - id: deepwiki
+    name: DeepWiki
+    description: |
+      Ask questions about any public GitHub repository.
+    url: https://mcp.deepwiki.com/mcp
+
+  # Remote server with auth: headers_helper prints JSON headers on connect,
+  # so the token never sits in a config file. Claude Code only.
+  - id: github
+    name: GitHub
+    description: |
+      Issues, pull requests and code search via GitHub's hosted server.
+      Authenticates with your existing `gh` login.
+    url: https://api.githubcopilot.com/mcp/
+    headers_helper: >-
+      echo "{\"Authorization\": \"Bearer $(gh auth token)\"}"
