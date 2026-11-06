@@ -33,7 +33,7 @@ homebrew_casks:
     repository:
       owner: bartdegoede
       name: homebrew-tap
-      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+      token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
     homepage: https://github.com/bartdegoede/toolshed
     description: Add any MCP server to Claude Code and Codex in seconds
     license: MIT
