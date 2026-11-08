@@ -116,6 +116,7 @@ tool (and its secrets) at a different command.
 | `toolshed uninstall <id>…` | Remove from the clients (`--purge` also deletes secrets) |
 | `toolshed tools <id>` | Start a server and list its tools |
 | `toolshed list` | Everything, and where it's installed (`--json`) |
+| `toolshed doctor` | Check every installed tool: does it start, are its secrets there, has it changed (`--no-start`, `--json`) |
 | `toolshed update` | Re-register installed tools after editing the registry (asks first if what a tool runs changed) |
 | `toolshed upgrade [<id>…]` | Move npx/uvx tools to the newest release of their package |
 | `toolshed approve <id>` | Review and allow a tool your agent added |

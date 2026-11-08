@@ -27,15 +27,8 @@ func Changes(e *registry.Entry, inst *clients.Installation) []string {
 	if inst == nil {
 		return nil
 	}
-	var cfgs []clients.Config
-	if inst.ClaudeScope != "" {
-		cfgs = append(cfgs, inst.Config)
-	}
-	if inst.Codex {
-		cfgs = append(cfgs, inst.CodexConfig)
-	}
 	var out []string
-	for _, cfg := range cfgs {
+	for _, cfg := range registrations(inst) {
 		for _, c := range changes(e, cfg) {
 			if !slices.Contains(out, c) {
 				out = append(out, c)
