@@ -2,6 +2,10 @@ module github.com/bartdegoede/toolshed
 
 go 1.26.0
 
+// `toolshed mcp` let an agent replace an existing tool and have the new
+// command started with that tool's keyring secrets. Fixed in v0.1.2.
+retract [v0.1.0, v0.1.1]
+
 require (
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/huh/v2 v2.0.3
@@ -18,10 +22,10 @@ require (
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20261023060817-a45b7c86333f // indirect
 	github.com/charmbracelet/x/ansi v0.11.9 // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
-	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
+	github.com/charmbracelet/x/exp/strings v0.1.0 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
@@ -40,8 +44,8 @@ require (
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/xo/terminfo v1.3.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/oauth2 v0.37.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/time v0.16.0 // indirect
 )
