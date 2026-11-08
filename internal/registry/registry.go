@@ -169,8 +169,19 @@ func (e *Entry) SecretGroup(in Input) string {
 	return e.ID
 }
 
-// Get returns the entry with the given ID, or nil.
-func (r *Registry) Get(id string) *Entry { return r.byID[id] }
+// Get returns the entry with the given ID, or nil. It also works on a
+// Registry built by hand (as tests do), without Load's index.
+func (r *Registry) Get(id string) *Entry {
+	if r.byID != nil {
+		return r.byID[id]
+	}
+	for _, e := range r.Entries {
+		if e.ID == id {
+			return e
+		}
+	}
+	return nil
+}
 
 // Load reads the built-in and user registries and merges them.
 func Load() (*Registry, error) {

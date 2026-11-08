@@ -118,6 +118,25 @@ won't start or re-install a changed tool, and tells the agent to send you to
 A shared registry is still trusted for tools you haven't installed yet:
 whoever can change it decides what a first `toolshed install` runs.
 
+## Checking your tools
+
+`toolshed doctor` checks every installed tool and says how to fix what it
+finds:
+
+- the registry entry changed since it was installed (fix: `toolshed update <id>`);
+- it's registered with a toolshed binary that's gone, e.g. after switching
+  from `go install` to Homebrew (`toolshed update <id>`);
+- its command isn't on `PATH`, or a secret is missing from the keyring
+  (`toolshed install <id>`);
+- an npm or PyPI package isn't pinned (a warning: `toolshed upgrade <id>`);
+- it doesn't start or list its tools.
+
+It also lists servers registered through toolshed that are no longer in your
+registry, and how many other servers Claude Code and Codex have that toolshed
+doesn't manage. `--no-start` skips starting the servers, which is much faster
+with npx and uvx tools. It exits with 1 if anything is broken (warnings don't
+count), so it works in scripts, and `--json` prints the report.
+
 ## Package versions
 
 `npx -y some-server` runs whatever was published last, every time your agent

@@ -86,6 +86,19 @@ expect "update -y accepts it" 0 "$TS" update greet -y
 has "$(claude_cfg greet)" 'https://evil.example.com' "and re-registers it"
 expect "update with nothing changed" 0 "$TS" update greet </dev/null
 
+section "doctor"
+expect "doctor --no-start on a healthy setup" 0 "$TS" doctor --no-start
+has "$out" "greet" "lists installed tools"
+expect "doctor starts the servers (the example docs URL doesn't exist, so it fails)" 1 "$TS" doctor
+has "$out" "greet .*1 tool" "greet starts and offers its tool"
+has "$out" "doesn't start" "docs is reported as not starting"
+sed -i.bak 's|https://evil.example.com|https://ntfy.example.com|' "$TOOLSHED_HOME/registry.yaml" && rm -f "$TOOLSHED_HOME/registry.yaml.bak"
+expect "doctor flags a registry change" 1 "$TS" doctor --no-start
+has "$out" "toolshed update greet" "and says how to fix it"
+json="$("$TS" doctor --no-start --json 2>/dev/null)"
+[[ "$(jq -r '.tools[] | select(.id=="greet") | .findings[0].level' <<<"$json")" == "error" ]] && ok "doctor --json has the finding" || bad "doctor --json has the finding" "$json"
+expect "fix it" 0 "$TS" update greet -y
+
 section "exec"
 resp="$( (printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"e2e","version":"1"}}}'; sleep 1) | "$TS" exec greet -- ping-mcp 2>&1)"
 has "$resp" '"name":"ping-mcp"' "exec hands off to the real server"

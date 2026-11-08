@@ -48,6 +48,7 @@ func init() {
 		{"approve", "<id> [-y]", "Review and allow a tool your agent added", runApprove},
 		{"remove", "<id>", "Uninstall a tool and delete it from your toolshed", runRemove},
 		{"list", "[--json]", "Show every tool and where it's installed", runList},
+		{"doctor", "[--no-start] [--json]", "Check that every installed tool works", runDoctor},
 		{"tools", "<id>", "Start a tool's server and list the tools it offers", runTools},
 		{"edit", "", "Open your registry in $EDITOR", runEdit},
 		{"mcp", "", "Serve toolshed over MCP, so your agent can add tools itself", runMCP},
