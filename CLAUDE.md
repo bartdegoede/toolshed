@@ -37,7 +37,7 @@ gh api repos/bartdegoede/homebrew-tap/contents/Casks/toolshed.rb -q .path   # ta
 - Validate `.goreleaser.yaml` changes before tagging: `goreleaser check` and
   `goreleaser release --snapshot --clean --skip=publish` (then `rm -rf dist`).
   Secret templates must be plain `{{ .Env.NAME }}`; anything else fails the cask step.
-- Releases build with Go `stable`; `go.mod` (1.25) is the `go install` minimum.
+- Releases build with Go `stable`; `go.mod` (1.26) is the `go install` minimum.
   Don't raise it, or `examples/ping-mcp/go.mod`, without a reason.
 - A failed release: fix on `main`, then tag the next patch version.
 - Re-record `docs/demo.gif` (`just demo`) when the TUI changes visibly.
