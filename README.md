@@ -65,6 +65,7 @@ Prefer the command line?
 ```sh
 toolshed add memory --npx @modelcontextprotocol/server-memory
 #  ✓ Added memory
+#    ✓ pinned to 2.1.0
 #  ✓ memory offers 9 tools
 #      create_entities   Create multiple new entities in the knowledge graph
 #      …
@@ -80,6 +81,10 @@ toolshed add fetch  --uvx mcp-server-fetch                     # Python package
 toolshed add docs   --url https://mcp.context7.com/mcp         # remote server
 toolshed add jira   --secret JIRA_TOKEN -- jira-mcp --site acme  # any command, with a secret
 ```
+
+npm and Python packages are pinned to their current release when you add
+them, so a server only changes when you say so: `toolshed upgrade` moves them
+to the newest release (`--dry-run` shows what it would do first).
 
 ## Let your agent manage its tools
 
@@ -111,7 +116,8 @@ tool (and its secrets) at a different command.
 | `toolshed uninstall <id>…` | Remove from the clients (`--purge` also deletes secrets) |
 | `toolshed tools <id>` | Start a server and list its tools |
 | `toolshed list` | Everything, and where it's installed (`--json`) |
-| `toolshed update` | Re-register installed tools after editing the registry |
+| `toolshed update` | Re-register installed tools after editing the registry (asks first if what a tool runs changed) |
+| `toolshed upgrade [<id>…]` | Move npx/uvx tools to the newest release of their package |
 | `toolshed approve <id>` | Review and allow a tool your agent added |
 | `toolshed remove <id>` | Uninstall and delete from your toolshed |
 | `toolshed edit` | Open your registry in `$EDITOR` |

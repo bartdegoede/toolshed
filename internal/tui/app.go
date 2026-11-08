@@ -12,6 +12,7 @@ import (
 	"charm.land/huh/v2"
 
 	"github.com/bartdegoede/toolshed/internal/clients"
+	"github.com/bartdegoede/toolshed/internal/pkgs"
 	"github.com/bartdegoede/toolshed/internal/registry"
 	"github.com/bartdegoede/toolshed/internal/shed"
 )
@@ -43,6 +44,7 @@ const (
 	formUninstall
 	formDelete
 	formApprove
+	formReview // an installed tool changed in the registry: accept before re-installing
 )
 
 type probeState struct {
@@ -249,13 +251,15 @@ func (m model) handleKey(key string) (tea.Model, tea.Cmd) {
 		if key == "t" {
 			return m, m.startProbe(e)
 		}
-		vals, _ := shed.Resolve(e, m.inst[e.ID], nil)
-		form, st := newInstallForm(e, vals, m.detailWidth())
-		m.install = st
-		if form == nil {
-			return m.startInstall(e)
+		if changes := shed.Changes(e, m.inst[e.ID]); len(changes) > 0 {
+			m.confirm = false
+			desc := "Since you installed it, it now:\n• " + strings.Join(changes, "\n• ")
+			if keys := e.SecretKeys(); len(keys) > 0 {
+				desc += "\nand it gets " + strings.Join(keys, ", ") + " from your keyring."
+			}
+			return m.openForm(formReview, newConfirmForm(e.DisplayName()+" changed. Install the new version?", desc, &m.confirm, m.detailWidth()))
 		}
-		return m.openForm(formInstall, form)
+		return m.openInstall(e)
 	case "u":
 		if e != nil && m.inst[e.ID] != nil {
 			m.confirm = false
@@ -305,7 +309,11 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 	switch m.formKind {
 	case formAdd:
 		entry, err := m.addSpec.toEntry()
+		pinned := ""
 		if err == nil {
+			if v, perr := pkgs.PinLatest(context.Background(), &entry); perr == nil {
+				pinned = " · pinned to " + v
+			}
 			err = registry.AddUserEntry(entry)
 		}
 		if err != nil {
@@ -323,9 +331,14 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 		}
 		m.justAdd = entry.ID
 		added := m.reg.Get(entry.ID)
-		return m, tea.Batch(m.setFlash("✓ Added "+entry.ID+" · probing for tools…", true), m.startProbe(added))
+		return m, tea.Batch(m.setFlash("✓ Added "+entry.ID+pinned+" · probing for tools…", true), m.startProbe(added))
 	case formInstall:
 		return m.startInstall(e)
+	case formReview:
+		if !m.confirm || e == nil {
+			return m, nil
+		}
+		return m.openInstall(e)
 	case formApprove:
 		if !m.confirm || e == nil {
 			return m, nil
@@ -366,6 +379,18 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 		return model, tea.Sequence(cmd, func() tea.Msg { return load() })
 	}
 	return m, nil
+}
+
+// openInstall asks for the tool's inputs, or installs straight away when it
+// has none.
+func (m model) openInstall(e *registry.Entry) (tea.Model, tea.Cmd) {
+	vals, _ := shed.Resolve(e, m.inst[e.ID], nil)
+	form, st := newInstallForm(e, vals, m.detailWidth())
+	m.install = st
+	if form == nil {
+		return m.startInstall(e)
+	}
+	return m.openForm(formInstall, form)
 }
 
 func (m model) startInstall(e *registry.Entry) (tea.Model, tea.Cmd) {

@@ -16,6 +16,13 @@ just lint
   them: shed.CheckApproved keeps agent-added (`pending`) tools from being
   started or installed. `toolshed mcp` must never replace an existing tool
   (it would inherit that tool's keyring secrets) or accept secret values.
+  shed.Changes finds installed tools whose registry entry now runs something
+  else: the CLI and TUI ask before re-registering them, `toolshed mcp` refuses.
+- npx/uvx packages are pinned on add (internal/pkgs); keep the built-in
+  examples in registry.yaml pinned too (a test checks it), and bump them with
+  `toolshed upgrade --dry-run` before a release.
+- Label PRs (security, enhancement, bug, documentation, dependencies): the
+  release notes are grouped by those labels (.github/release.yml).
 - TUI: Bubble Tea v2 / Lipgloss v2 / huh v2 (charm.land/... import paths).
 - Never let tests touch the real ~/.claude.json, ~/.codex or keychain: use
   secrets.UseMockForTest, t.Setenv("HOME", t.TempDir()), TOOLSHED_HOME.

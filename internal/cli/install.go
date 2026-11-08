@@ -13,6 +13,7 @@ import (
 
 	"github.com/bartdegoede/toolshed/internal/clients"
 	"github.com/bartdegoede/toolshed/internal/registry"
+	"github.com/bartdegoede/toolshed/internal/secrets"
 	"github.com/bartdegoede/toolshed/internal/shed"
 )
 
@@ -58,7 +59,7 @@ func runInstall(args []string) error {
 	for _, id := range ids {
 		e, err := lookup(reg, id)
 		if err == nil {
-			err = installOne(e, installed[id], overrides, opts, interactive)
+			err = installOne(e, installed[id], overrides, opts, *yes, interactive)
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s %s: %v\n", red("✗"), id, err)
@@ -71,7 +72,10 @@ func runInstall(args []string) error {
 	return nil
 }
 
-func installOne(e *registry.Entry, inst *clients.Installation, overrides shed.Values, opts shed.InstallOptions, interactive bool) error {
+func installOne(e *registry.Entry, inst *clients.Installation, overrides shed.Values, opts shed.InstallOptions, yes, interactive bool) error {
+	if ok, err := reviewChanges(e, inst, yes, interactive); err != nil || !ok {
+		return err
+	}
 	given := shed.Values{}
 	for _, in := range e.Inputs {
 		if v, ok := overrides[in.Key]; ok {
@@ -193,9 +197,11 @@ func runUninstall(args []string) error {
 
 // runUpdate re-registers installed tools so changes to the registry (or to
 // toolshed's own path after an upgrade) reach the clients. Earlier input
-// values and the Claude scope are kept.
+// values and the Claude scope are kept. If what a tool runs has changed, the
+// user sees the change and confirms it first.
 func runUpdate(args []string) error {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	yes := fs.Bool("y", false, "accept changes to what tools run without asking")
 	ids, err := parse(fs, args)
 	if err != nil {
 		return err
@@ -212,6 +218,7 @@ func runUpdate(args []string) error {
 			}
 		}
 	}
+	interactive := !*yes && term.IsTerminal(int(os.Stdin.Fd()))
 	var errs []error
 	for _, id := range ids {
 		e, err := lookup(reg, id)
@@ -219,24 +226,67 @@ func runUpdate(args []string) error {
 		if err == nil && inst == nil {
 			err = fmt.Errorf("not installed")
 		}
+		ok := false
 		if err == nil {
-			vals, _ := shed.Resolve(e, inst, nil)
-			scope := inst.ClaudeScope // keep it: user, local or project
-			if scope == "" {
-				scope = "user" // Codex-only install
-			}
-			_, err = shed.Install(e, vals, shed.InstallOptions{Scope: scope, Clients: inst.Clients()})
+			ok, err = reviewChanges(e, inst, *yes, interactive)
+		}
+		if err == nil && ok {
+			err = reregister(e, inst)
 		}
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", id, err))
 			continue
 		}
-		fmt.Printf("%s Updated %s\n", green("✓"), bold(id))
+		if ok {
+			fmt.Printf("%s Updated %s\n", green("✓"), bold(id))
+		}
 	}
 	if len(ids) == 0 {
 		fmt.Println(dim("Nothing installed yet."))
 	}
 	return errors.Join(errs...)
+}
+
+// reregister installs e again where it's installed now, keeping earlier
+// values and the Claude scope (user, local or project).
+func reregister(e *registry.Entry, inst *clients.Installation) error {
+	vals, _ := shed.Resolve(e, inst, nil)
+	scope := inst.ClaudeScope
+	if scope == "" {
+		scope = "user" // Codex-only install
+	}
+	_, err := shed.Install(e, vals, shed.InstallOptions{Scope: scope, Clients: inst.Clients()})
+	return err
+}
+
+// reviewChanges shows what changed about an installed tool since it was
+// installed (see shed.Changes) and asks before going on. With yes it only
+// shows them; without a terminal it refuses. ok is false if the user said no.
+func reviewChanges(e *registry.Entry, inst *clients.Installation, yes, interactive bool) (ok bool, err error) {
+	changes := shed.Changes(e, inst)
+	if len(changes) == 0 {
+		return true, nil
+	}
+	fmt.Printf("%s %s has changed since you installed it. It now:\n", amber("!"), bold(e.ID))
+	for _, c := range changes {
+		fmt.Printf("    %s\n", c)
+	}
+	if keys := e.SecretKeys(); len(keys) > 0 && secrets.Available() {
+		fmt.Printf("  and it gets %s from your keyring.\n", bold(strings.Join(keys, ", ")))
+	}
+	switch {
+	case yes:
+		return true, nil
+	case !interactive:
+		return false, fmt.Errorf("%s changed since it was installed; check the change above and pass -y to accept it", e.ID)
+	}
+	fmt.Print("Accept the change? [y/N] ")
+	line, _ := stdin.ReadString('\n')
+	if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" {
+		fmt.Println(dim("Kept the installed version of " + e.ID + "."))
+		return false, nil
+	}
+	return true, nil
 }
 
 // runApprove shows what a tool an agent added would run and, once the user

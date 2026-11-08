@@ -39,7 +39,9 @@ case "$sub" in
             jq -n --arg u "$url" '{url: $u}' > "$dir/servers/$name.json"
         else
             cmd="$1"; shift
-            jq -n --arg c "$cmd" --argjson e "$env" '{command: $c, args: $ARGS.positional, env: $e}' --args "$@" > "$dir/servers/$name.json"
+            # NUL-separated through stdin, so server args like -c aren't read as jq flags
+            args='[]'; [[ $# -gt 0 ]] && args="$(printf '%s\0' "$@" | jq -Rs 'split("\u0000")[:-1]')"
+            jq -n --arg c "$cmd" --argjson e "$env" --argjson a "$args" '{command: $c, args: $a, env: $e}' > "$dir/servers/$name.json"
         fi
         render; echo "Added $name" ;;
     remove)

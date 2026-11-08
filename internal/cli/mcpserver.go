@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/bartdegoede/toolshed/internal/clients"
+	"github.com/bartdegoede/toolshed/internal/pkgs"
 	"github.com/bartdegoede/toolshed/internal/registry"
 	"github.com/bartdegoede/toolshed/internal/shed"
 )
@@ -107,6 +108,9 @@ func newMCPServer() *mcp.Server {
 		if err != nil {
 			return toolError(err), nil, nil
 		}
+		if err := checkUnchanged(e, clients.Detect()[e.ID]); err != nil {
+			return toolError(err), nil, nil
+		}
 		tools, err := shed.Probe(ctx, e)
 		if err != nil {
 			return toolError(err), nil, nil
@@ -143,6 +147,10 @@ func newMCPServer() *mcp.Server {
 			return toolError(fmt.Errorf("the user already has a server called %s; pick another id, or ask the user to change it themselves", e.ID)), nil, nil
 		}
 		e.Pending = true
+		pinned := ""
+		if v, err := pkgs.PinLatest(ctx, &e); err == nil {
+			pinned = fmt.Sprintf(" Pinned it to version %s; `toolshed upgrade %s` moves it to newer releases later.", v, e.ID)
+		}
 		if err := registry.AddUserEntry(e); err != nil {
 			return toolError(err), nil, nil
 		}
@@ -150,8 +158,8 @@ func newMCPServer() *mcp.Server {
 		if len(e.Inputs) > 0 {
 			next = fmt.Sprintf("It also needs secrets (%s), which they enter in the same step: `toolshed install %s` after approving.", inputKeys(e.Inputs), e.ID)
 		}
-		msg := fmt.Sprintf("Added %s, pending approval. Ask the user to review and approve it in a terminal with `toolshed approve %s` (or select it in `toolshed`). %s",
-			e.ID, e.ID, next)
+		msg := fmt.Sprintf("Added %s, pending approval.%s Ask the user to review and approve it in a terminal with `toolshed approve %s` (or select it in `toolshed`). %s",
+			e.ID, pinned, e.ID, next)
 		return textResult(msg), nil, nil
 	})
 
@@ -183,6 +191,9 @@ func newMCPServer() *mcp.Server {
 			return toolError(fmt.Errorf("project scope needs a git repository")), nil, nil
 		}
 		installed := clients.Detect()
+		if err := checkUnchanged(e, installed[e.ID]); err != nil {
+			return toolError(err), nil, nil
+		}
 		vals, missing := shed.Resolve(e, installed[e.ID], a.Values)
 		if len(missing) > 0 {
 			return toolError(fmt.Errorf("%s needs %s first: ask the user to run `toolshed install %s` in a terminal to enter it privately",
@@ -219,6 +230,17 @@ func newMCPServer() *mcp.Server {
 		return textResult("Uninstalled " + e.ID + "."), nil, nil
 	})
 	return s
+}
+
+// checkUnchanged refuses to start or re-install a tool whose registry entry
+// changed since it was installed: the user reviews that, not the agent.
+func checkUnchanged(e *registry.Entry, inst *clients.Installation) error {
+	changes := shed.Changes(e, inst)
+	if len(changes) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s changed since the user installed it (it now %s); ask the user to review the change in a terminal with `toolshed update %s`",
+		e.ID, strings.Join(changes, "; "), e.ID)
 }
 
 func inputKeys(ins []registry.Input) string {

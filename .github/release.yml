@@ -1,0 +1,18 @@
+# Groups merged pull requests in the generated release notes by label.
+# Label each PR with one of these; unlabeled ones land under "Other changes".
+changelog:
+  exclude:
+    labels: [ignore-for-release]
+  categories:
+    - title: Security
+      labels: [security]
+    - title: New features
+      labels: [enhancement]
+    - title: Fixes
+      labels: [bug]
+    - title: Documentation
+      labels: [documentation]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Other changes
+      labels: ["*"]
