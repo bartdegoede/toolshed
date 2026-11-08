@@ -22,10 +22,10 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Release notes are GitHub's own: merged pull requests, grouped by label as
+# set out in .github/release.yml.
 changelog:
-  sort: asc
-  filters:
-    exclude: ["^docs:", "^test:", "^chore:"]
+  use: github-native
 
 homebrew_casks:
   - name: toolshed

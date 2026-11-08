@@ -30,6 +30,7 @@ func runAdd(args []string) error {
 	install := fs.Bool("install", false, "install right after adding")
 	force := fs.Bool("force", false, "replace a tool with the same id in your toolshed")
 	noProbe := fs.Bool("no-check", false, "skip starting the server to list its tools")
+	noPin := fs.Bool("no-pin", false, "npx/uvx: don't pin the package to its current version")
 	var env, secret, input multi
 	fs.Var(&env, "env", "fixed environment variable KEY=VALUE (repeatable)")
 	fs.Var(&secret, "secret", "secret env var prompted at install, stored in the keyring (repeatable)")
@@ -82,10 +83,15 @@ func runAdd(args []string) error {
 			return fmt.Errorf("you already have a tool called %s (%s); pass --force to replace it", e.ID, old.CommandLine())
 		}
 	}
+	pinned := ""
+	if !*noPin {
+		pinned = pinNew(&e)
+	}
 	if err := registry.AddUserEntry(e); err != nil {
 		return err
 	}
 	fmt.Printf("%s Added %s to %s\n", green("✓"), bold(e.ID), dim(registry.UserPath()))
+	fmt.Print(pinned)
 
 	if !*noProbe && len(e.Inputs) == 0 {
 		printProbe(&e)

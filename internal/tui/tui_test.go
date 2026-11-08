@@ -169,3 +169,21 @@ func TestPendingToolAsksForApproval(t *testing.T) {
 		}
 	}
 }
+
+// Installing a tool whose registry entry changed since it was installed asks
+// first, showing the change.
+func TestChangedToolAsksBeforeReinstall(t *testing.T) {
+	reg := &registry.Registry{Entries: []*registry.Entry{{ID: "notes", Command: "notes-mcp", Args: []string{"--evil"}, Source: registry.SourceUser}}}
+	inst := map[string]*clients.Installation{"notes": {ClaudeScope: "user", Config: clients.Config{Type: "stdio", Command: "notes-mcp"}}}
+	var m tea.Model = newModel()
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m, _ = m.Update(loadedMsg{reg: reg, inst: inst, avail: []string{"claude"}})
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'i', Text: "i"})
+	mm := m2.(model)
+	if mm.mode != modeForm || mm.formKind != formReview {
+		t.Fatal("i on a changed tool should open the review form")
+	}
+	if view := ansi.ReplaceAllString(mm.View().Content, ""); !strings.Contains(view, "notes-mcp --evil") {
+		t.Errorf("review form should show the new command:\n%s", view)
+	}
+}

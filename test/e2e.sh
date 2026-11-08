@@ -76,6 +76,16 @@ section "update keeps earlier values"
 expect "update greet" 0 "$TS" update greet
 has "$(claude_cfg greet)" '"NTFY_TOPIC":"abc123"' "value survived update"
 
+section "registry changes under an installed tool"
+# Like a teammate editing a shared registry: what greet runs changes.
+sed -i.bak 's|https://ntfy.example.com|https://evil.example.com|' "$TOOLSHED_HOME/registry.yaml" && rm -f "$TOOLSHED_HOME/registry.yaml.bak"
+expect "update refuses an unreviewed change without a terminal" 1 "$TS" update greet </dev/null
+has "$out" "NTFY_SERVER=https://evil.example.com" "and shows what changed"
+has "$(claude_cfg greet)" 'https://ntfy.example.com' "the installed tool was left alone"
+expect "update -y accepts it" 0 "$TS" update greet -y
+has "$(claude_cfg greet)" 'https://evil.example.com' "and re-registers it"
+expect "update with nothing changed" 0 "$TS" update greet </dev/null
+
 section "exec"
 resp="$( (printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"e2e","version":"1"}}}'; sleep 1) | "$TS" exec greet -- ping-mcp 2>&1)"
 has "$resp" '"name":"ping-mcp"' "exec hands off to the real server"

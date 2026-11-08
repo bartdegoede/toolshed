@@ -74,6 +74,33 @@ func ApproveUserEntry(id string) error {
 	return saveUserDoc(doc)
 }
 
+// SetUserArgs replaces a user tool's args (used by `toolshed upgrade` to move
+// a pinned package to a new version), leaving the rest of the file as it is.
+func SetUserArgs(id string, args []string) error {
+	doc, tools, err := loadUserDoc()
+	if err != nil {
+		return err
+	}
+	i := indexOfID(tools, id)
+	if i < 0 {
+		return fmt.Errorf("%s is not in your registry (%s)", id, UserPath())
+	}
+	var val yaml.Node
+	if err := val.Encode(args); err != nil {
+		return err
+	}
+	item := tools.Content[i]
+	for j := 0; j+1 < len(item.Content); j += 2 {
+		if item.Content[j].Value == "args" {
+			val.Style = item.Content[j+1].Style // keep [a, b] or block style
+			item.Content[j+1] = &val
+			return saveUserDoc(doc)
+		}
+	}
+	item.Content = append(item.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "args"}, &val)
+	return saveUserDoc(doc)
+}
+
 // EnsureUserFile creates the user registry (with an explanatory header) if
 // it doesn't exist yet.
 func EnsureUserFile() error {

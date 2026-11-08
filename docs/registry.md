@@ -29,7 +29,7 @@ tools:
 
     # A local server (stdio): a command on PATH, or an absolute path…
     command: npx
-    args: [-y, "@acme/jira-mcp"]
+    args: [-y, "@acme/jira-mcp@1.4.2"]   # pinned: see "Package versions" below
     env:                          # fixed environment variables
       JIRA_SITE: acme.atlassian.net
     inputs:                       # values asked for at install time
@@ -99,9 +99,41 @@ approve it. `toolshed approve <id>` shows you exactly what it will run first.
 The agent also can't replace a tool that's already in your registry, because
 the replacement would inherit that tool's secrets.
 
-A shared registry (`TOOLSHED_REGISTRY`) is trusted the same way as your own
-file: whoever can change it decides what `toolshed install` and
-`toolshed update` run.
+## When the registry changes under an installed tool
+
+A registry can change after you installed a tool from it: a teammate edits a
+shared registry (`TOOLSHED_REGISTRY`), you edit your own, or a toolshed
+release updates a built-in example. Re-installing would then give that
+tool's keyring secrets to a command you haven't looked at.
+
+So `toolshed install`, `toolshed update` and the TUI compare the registry
+with what Claude Code and Codex actually run: the command and its arguments,
+the fixed `env`, which keyring entries the secrets come from, and a remote
+tool's URL and `headers_helper`. If any of those changed, they show you the
+change and ask before re-registering. Without a terminal they refuse unless
+you pass `-y`. Your agent can't accept a change for you: `toolshed mcp`
+won't start or re-install a changed tool, and tells the agent to send you to
+`toolshed update <id>`.
+
+A shared registry is still trusted for tools you haven't installed yet:
+whoever can change it decides what a first `toolshed install` runs.
+
+## Package versions
+
+`npx -y some-server` runs whatever was published last, every time your agent
+starts it, with the tool's secrets in its environment. So `toolshed add`
+(and the TUI, and your agent through `toolshed mcp`) pins npm and PyPI
+packages to their newest release: `@acme/jira-mcp@1.4.2`,
+`mcp-server-fetch==2026.11.4`. Pass `--no-pin` to keep a package unpinned.
+
+`toolshed upgrade` looks up the newest release of every npx and uvx tool
+in your registry, moves its pin, and re-installs it where it's installed.
+`toolshed upgrade <id>` does one tool, and `--dry-run` only lists what's
+out of date. The built-in examples are pinned too, and move with toolshed
+releases.
+
+npm lookups use `npm_config_registry` when it's set, as npm does. For PyPI
+mirrors, set `TOOLSHED_PYPI_URL` to one that serves PyPI's JSON API.
 
 ## Install scope
 
