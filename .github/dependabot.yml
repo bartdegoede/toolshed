@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Note: go.mod's `go` line is the minimum for `go install` (see CLAUDE.md).
+  # A dependency that needs a newer Go will raise it; don't merge that
+  # without deciding to drop the older Go.
+  - package-ecosystem: gomod
+    directories: ["/", "/examples/ping-mcp"]
+    schedule: { interval: weekly }
+    groups:
+      go-deps: { patterns: ["*"] }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
