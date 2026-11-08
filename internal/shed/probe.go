@@ -25,11 +25,22 @@ type Tool struct {
 // ProbeTimeout bounds how long Probe waits for a server.
 var ProbeTimeout = 20 * time.Second
 
+// PackageProbeTimeout is the longer bound for npx and uvx servers, whose
+// first start downloads the package.
+var PackageProbeTimeout = 90 * time.Second
+
 // Probe starts (or connects to) a server, performs the MCP handshake and
 // returns the tools it advertises. It is the "does this actually work?"
 // check: if Probe succeeds, Claude Code and Codex will be able to talk to it.
 func Probe(ctx context.Context, e *registry.Entry) ([]Tool, error) {
-	ctx, cancel := context.WithTimeout(ctx, ProbeTimeout)
+	if err := CheckApproved(e); err != nil {
+		return nil, err
+	}
+	timeout := ProbeTimeout
+	if (e.Command == "npx" || e.Command == "uvx") && PackageProbeTimeout > timeout {
+		timeout = PackageProbeTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	var transport mcp.Transport

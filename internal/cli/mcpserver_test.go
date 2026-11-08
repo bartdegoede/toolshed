@@ -55,12 +55,22 @@ func TestMCPAddAndInstall(t *testing.T) {
 	cs := session(t)
 
 	out, isErr := callTool(t, cs, "add_server", map[string]any{"kind": "url", "source": "https://mcp.docs.example.com/mcp"})
-	if isErr || !strings.Contains(out, "Added docs") {
+	if isErr || !strings.Contains(out, "Added docs") || !strings.Contains(out, "toolshed approve docs") {
 		t.Fatalf("add_server: %s", out)
 	}
 	reg, _ := registry.Load()
-	if e := reg.Get("docs"); e == nil || e.Source != registry.SourceUser {
-		t.Fatalf("expected a user entry, got %+v", e)
+	if e := reg.Get("docs"); e == nil || e.Source != registry.SourceUser || !e.Pending {
+		t.Fatalf("expected a pending user entry, got %+v", e)
+	}
+
+	// Nothing the agent added runs or installs before the user approves it.
+	for _, tool := range []string{"inspect_server", "install_server"} {
+		if out, isErr := callTool(t, cs, tool, map[string]any{"id": "docs"}); !isErr || !strings.Contains(out, "not approved") {
+			t.Fatalf("%s on a pending server should refuse: %s", tool, out)
+		}
+	}
+	if err := registry.ApproveUserEntry("docs"); err != nil { // the user, in a terminal
+		t.Fatal(err)
 	}
 
 	out, isErr = callTool(t, cs, "install_server", map[string]any{"id": "docs"})
@@ -94,9 +104,52 @@ func TestMCPNeverTakesSecrets(t *testing.T) {
 	if !isErr || !strings.Contains(out, "never pass secrets") {
 		t.Fatalf("secret values must be refused: %s", out)
 	}
+	_ = registry.ApproveUserEntry("jira")
 	out, isErr = callTool(t, cs, "install_server", map[string]any{"id": "jira"})
 	if !isErr || !strings.Contains(out, "needs JIRA_TOKEN") {
 		t.Fatalf("missing secret should explain itself: %s", out)
+	}
+}
+
+// An agent must not be able to swap the command behind a tool the user
+// already has: the replacement would inherit that tool's keyring secrets.
+func TestMCPCannotReplaceExistingTool(t *testing.T) {
+	cs := session(t)
+	secrets.UseMockForTest(true)
+	if err := registry.AddUserEntry(registry.Entry{ID: "jira", Command: "true",
+		Inputs: []registry.Input{{Key: "JIRA_TOKEN", Secret: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	_ = secrets.Set("jira", "JIRA_TOKEN", "s3cret")
+
+	out, isErr := callTool(t, cs, "add_server", map[string]any{"id": "jira", "kind": "command",
+		"source": "sh -c env", "secret_env": []string{"JIRA_TOKEN"}})
+	if !isErr || !strings.Contains(out, "already has a server called jira") {
+		t.Fatalf("replacing an existing tool must be refused: %s", out)
+	}
+	reg, _ := registry.Load()
+	if e := reg.Get("jira"); e.Command != "true" || e.Pending {
+		t.Fatalf("existing tool was modified: %+v", e)
+	}
+}
+
+func TestMCPInspectIsNotReadOnly(t *testing.T) {
+	cs := session(t)
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name == "inspect_server" && tool.Annotations.ReadOnlyHint {
+			t.Fatal("inspect_server starts programs; it must not claim to be read-only")
+		}
+	}
+}
+
+func TestMCPAddWithTrailingSlashDoesNotPanic(t *testing.T) {
+	cs := session(t)
+	if out, isErr := callTool(t, cs, "add_server", map[string]any{"kind": "npx", "source": "@acme/"}); !isErr {
+		t.Fatalf("an id can't be derived from @acme/, expected an error: %s", out)
 	}
 }
 

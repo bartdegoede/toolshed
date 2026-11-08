@@ -59,8 +59,39 @@ func AvailableClients() []string {
 func codexName(name string) string { return strings.ReplaceAll(name, "-", "_") }
 
 // Register adds (or replaces) a server in one client. scope applies to
-// Claude only ("user" or "project"); Codex registrations are always global.
+// Claude only ("user", "local" or "project"); Codex registrations are always
+// global.
+//
+// Replacing means remove-then-add, since neither CLI has an "update". If the
+// add fails, the previous registration is put back, so a failed update never
+// leaves the tool uninstalled.
 func Register(client, name string, cfg Config, scope string) error {
+	prev := previous(client, name, scope)
+	err := register(client, name, cfg, scope)
+	if err == nil || prev == nil {
+		return err
+	}
+	if rerr := register(client, name, *prev, scope); rerr != nil {
+		return fmt.Errorf("%w (restoring the previous registration also failed: %v)", err, rerr)
+	}
+	return fmt.Errorf("%w (kept the previous registration)", err)
+}
+
+// previous returns the current registration of name in client/scope, if any.
+func previous(client, name, scope string) *Config {
+	inst := Detect()[name]
+	switch {
+	case inst == nil:
+		return nil
+	case client == Claude && inst.ClaudeScope == scope:
+		return &inst.Config
+	case client == Codex && inst.Codex:
+		return &inst.CodexConfig
+	}
+	return nil
+}
+
+func register(client, name string, cfg Config, scope string) error {
 	switch client {
 	case Claude:
 		data, err := json.Marshal(cfg)

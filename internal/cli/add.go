@@ -28,6 +28,7 @@ func runAdd(args []string) error {
 	desc := fs.String("description", "", "one-line description")
 	headers := fs.String("headers-helper", "", "remote only: command printing JSON auth headers")
 	install := fs.Bool("install", false, "install right after adding")
+	force := fs.Bool("force", false, "replace a tool with the same id in your toolshed")
 	noProbe := fs.Bool("no-check", false, "skip starting the server to list its tools")
 	var env, secret, input multi
 	fs.Var(&env, "env", "fixed environment variable KEY=VALUE (repeatable)")
@@ -72,6 +73,15 @@ func runAdd(args []string) error {
 		e.Inputs = append(e.Inputs, registry.Input{Key: k})
 	}
 
+	if !*force {
+		reg, err := loadRegistry()
+		if err != nil {
+			return err
+		}
+		if old := reg.Get(e.ID); old != nil && old.Source == registry.SourceUser {
+			return fmt.Errorf("you already have a tool called %s (%s); pass --force to replace it", e.ID, old.CommandLine())
+		}
+	}
 	if err := registry.AddUserEntry(e); err != nil {
 		return err
 	}

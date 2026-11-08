@@ -12,6 +12,10 @@ just lint
 ```
 
 - Operations live in internal/shed; internal/cli and internal/tui are thin.
+- Safety rules belong in internal/shed so every front end (CLI, TUI, MCP) gets
+  them: shed.CheckApproved keeps agent-added (`pending`) tools from being
+  started or installed. `toolshed mcp` must never replace an existing tool
+  (it would inherit that tool's keyring secrets) or accept secret values.
 - TUI: Bubble Tea v2 / Lipgloss v2 / huh v2 (charm.land/... import paths).
 - Never let tests touch the real ~/.claude.json, ~/.codex or keychain: use
   secrets.UseMockForTest, t.Setenv("HOME", t.TempDir()), TOOLSHED_HOME.

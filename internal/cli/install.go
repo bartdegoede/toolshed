@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"golang.org/x/term"
@@ -220,9 +221,9 @@ func runUpdate(args []string) error {
 		}
 		if err == nil {
 			vals, _ := shed.Resolve(e, inst, nil)
-			scope := inst.ClaudeScope
-			if scope == "" || scope == "local" {
-				scope = "user"
+			scope := inst.ClaudeScope // keep it: user, local or project
+			if scope == "" {
+				scope = "user" // Codex-only install
 			}
 			_, err = shed.Install(e, vals, shed.InstallOptions{Scope: scope, Clients: inst.Clients()})
 		}
@@ -236,6 +237,65 @@ func runUpdate(args []string) error {
 		fmt.Println(dim("Nothing installed yet."))
 	}
 	return errors.Join(errs...)
+}
+
+// runApprove shows what a tool an agent added would run and, once the user
+// confirms, lets toolshed start and install it.
+func runApprove(args []string) error {
+	fs := flag.NewFlagSet("approve", flag.ContinueOnError)
+	yes := fs.Bool("y", false, "approve without asking")
+	ids, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(ids) != 1 {
+		return usagef("approve needs exactly one id")
+	}
+	reg, err := loadRegistry()
+	if err != nil {
+		return err
+	}
+	e, err := lookup(reg, ids[0])
+	if err != nil {
+		return err
+	}
+	if !e.Pending {
+		fmt.Printf("%s %s doesn't need approval\n", dim("·"), e.ID)
+		return nil
+	}
+	fmt.Printf("Your agent added %s. Approving it lets toolshed run:\n\n  %s\n", bold(e.ID), e.CommandLine())
+	for _, k := range sortedKeys(e.Env) {
+		fmt.Printf("  %s\n", dim(k+"="+e.Env[k]))
+	}
+	if keys := e.SecretKeys(); len(keys) > 0 {
+		fmt.Printf("\n  with these secrets from your keyring: %s\n", bold(strings.Join(keys, ", ")))
+	}
+	fmt.Println()
+	if !*yes {
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			return fmt.Errorf("not a terminal: pass -y to approve %s without asking", e.ID)
+		}
+		fmt.Print("Approve? [y/N] ")
+		line, _ := stdin.ReadString('\n')
+		if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" {
+			fmt.Println(dim("Not approved."))
+			return nil
+		}
+	}
+	if err := registry.ApproveUserEntry(e.ID); err != nil {
+		return err
+	}
+	fmt.Printf("%s Approved %s. Install it with %s\n", green("✓"), bold(e.ID), bold("toolshed install "+e.ID))
+	return nil
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func runRemove(args []string) error {

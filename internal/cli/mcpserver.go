@@ -48,6 +48,8 @@ func newMCPServer() *mcp.Server {
 		Instructions: "toolshed manages the MCP servers available to Claude Code and Codex. " +
 			"Use list_servers to see what's available and installed, add_server to register a new one, " +
 			"inspect_server to start it and see its tools, and install_server to make it available. " +
+			"Servers you add are pending until the user approves them in a terminal (`toolshed approve <id>`) " +
+			"or in the toolshed TUI; until then they can't be inspected or installed. " +
 			"Newly installed servers load when the client restarts or reconnects (/mcp in Claude Code). " +
 			"Never ask the user to paste secrets into the chat; secrets are entered in the toolshed TUI or terminal.",
 	})
@@ -72,10 +74,11 @@ func newMCPServer() *mcp.Server {
 			Source      string   `json:"source"`
 			InstalledIn []string `json:"installed_in"`
 			Secrets     []string `json:"secret_inputs,omitempty"`
+			Pending     bool     `json:"pending_approval,omitempty"`
 		}
 		var items []item
 		for _, e := range reg.Entries {
-			it := item{ID: e.ID, Name: e.DisplayName(), Description: e.Summary(), Kind: kind(e), Source: e.Source, InstalledIn: []string{}}
+			it := item{ID: e.ID, Name: e.DisplayName(), Description: e.Summary(), Kind: kind(e), Source: e.Source, InstalledIn: []string{}, Pending: e.Pending}
 			if inst := installed[e.ID]; inst != nil {
 				it.InstalledIn = inst.Clients()
 			}
@@ -90,9 +93,11 @@ func newMCPServer() *mcp.Server {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "inspect_server",
-		Description: "Start a server (or connect to a remote one) and list the tools it offers. Use it to check a server works before installing it.",
-		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: ptr(true)},
+		Name: "inspect_server",
+		Description: "Start a server (or connect to a remote one) and list the tools it offers. Use it to check a server works before installing it. " +
+			"It runs the server's command on the user's machine, so it only works once the user has approved the server.",
+		// Not read-only: starting a local server runs a program.
+		Annotations: &mcp.ToolAnnotations{OpenWorldHint: ptr(true)},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, a idArgs) (*mcp.CallToolResult, any, error) {
 		reg, err := loadRegistry()
 		if err != nil {
@@ -117,6 +122,7 @@ func newMCPServer() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "add_server",
 		Description: "Add an MCP server to the user's toolshed (it is not installed yet). " +
+			"It stays pending until the user approves it in a terminal or the toolshed TUI. " +
 			"Examples: kind=npx source=@modelcontextprotocol/server-memory; kind=url source=https://mcp.deepwiki.com/mcp.",
 		Annotations: changes,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, a addArgs) (*mcp.CallToolResult, any, error) {
@@ -124,19 +130,28 @@ func newMCPServer() *mcp.Server {
 		if err != nil {
 			return toolError(err), nil, nil
 		}
-		if reg, err := loadRegistry(); err == nil {
-			if existing := reg.Get(e.ID); existing != nil && existing.Source == registry.SourceBuiltin {
+		reg, err := loadRegistry()
+		if err != nil {
+			return toolError(err), nil, nil
+		}
+		// Never replace an existing tool: its secrets live in the keyring
+		// under its id, so a replacement would hand them to a new command.
+		if existing := reg.Get(e.ID); existing != nil {
+			if existing.Source == registry.SourceBuiltin {
 				return toolError(fmt.Errorf("%s is already a built-in example; install it directly", e.ID)), nil, nil
 			}
+			return toolError(fmt.Errorf("the user already has a server called %s; pick another id, or ask the user to change it themselves", e.ID)), nil, nil
 		}
+		e.Pending = true
 		if err := registry.AddUserEntry(e); err != nil {
 			return toolError(err), nil, nil
 		}
-		msg := fmt.Sprintf("Added %s. Next: inspect_server to check it, then install_server.", e.ID)
+		next := "Then use inspect_server to check it and install_server to install it."
 		if len(e.Inputs) > 0 {
-			msg = fmt.Sprintf("Added %s. It needs secrets (%s): ask the user to run `toolshed install %s` in a terminal (or press i in `toolshed`) so they can enter them privately.",
-				e.ID, inputKeys(e.Inputs), e.ID)
+			next = fmt.Sprintf("It also needs secrets (%s), which they enter in the same step: `toolshed install %s` after approving.", inputKeys(e.Inputs), e.ID)
 		}
+		msg := fmt.Sprintf("Added %s, pending approval. Ask the user to review and approve it in a terminal with `toolshed approve %s` (or select it in `toolshed`). %s",
+			e.ID, e.ID, next)
 		return textResult(msg), nil, nil
 	})
 
@@ -159,6 +174,9 @@ func newMCPServer() *mcp.Server {
 					return toolError(fmt.Errorf("%s is a secret: never pass secrets through the chat; ask the user to run `toolshed install %s` in a terminal", k, e.ID)), nil, nil
 				}
 			}
+		}
+		if err := shed.CheckApproved(e); err != nil {
+			return toolError(fmt.Errorf("%w; ask the user to do that in a terminal", err)), nil, nil
 		}
 		opts := shed.InstallOptions{Scope: a.Scope}
 		if opts.Scope == "project" && clients.GitRoot() == "" {

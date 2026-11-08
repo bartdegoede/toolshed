@@ -16,6 +16,7 @@ type Installation struct {
 	ClaudeScope string // "user", "project", "local", or "" when not in Claude
 	Codex       bool
 	Config      Config // Claude's config if present, else Codex's
+	CodexConfig Config // Codex's own config, when Codex has it
 }
 
 // Clients returns the clients this server is registered in.
@@ -90,12 +91,13 @@ func Detect() map[string]*Installation {
 		for name, s := range codexTOML.MCPServers {
 			inst := get(strings.ReplaceAll(name, "_", "-"))
 			inst.Codex = true
+			typ := "stdio"
+			if s.URL != "" {
+				typ = "http"
+			}
+			inst.CodexConfig = Config{Type: typ, Command: s.Command, Args: s.Args, Env: s.Env, URL: s.URL}
 			if inst.ClaudeScope == "" {
-				typ := "stdio"
-				if s.URL != "" {
-					typ = "http"
-				}
-				inst.Config = Config{Type: typ, Command: s.Command, Args: s.Args, Env: s.Env, URL: s.URL}
+				inst.Config = inst.CodexConfig
 			}
 		}
 	}
