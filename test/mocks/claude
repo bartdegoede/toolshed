@@ -2,7 +2,10 @@
 # Mock `claude` CLI for the e2e suite. Implements just enough of
 # `claude mcp add-json|remove` to write the same files the real CLI does:
 #   -s user    → ~/.claude.json  .mcpServers
+#   -s local   → ~/.claude.json  .projects[<git root>].mcpServers
 #   -s project → <git root>/.mcp.json .mcpServers
+# MOCK_CLAUDE_FAIL_ADD=<substring>: add-json fails when its JSON contains it
+# (to test that a failed replace keeps the previous registration).
 set -euo pipefail
 
 [[ "${1:-}" == "--version" ]] && { echo "2.0.0 (mock)"; exit 0; }
@@ -16,9 +19,11 @@ while [[ $# -gt 0 ]]; do
     case "$1" in -s|--scope) scope="$2"; shift 2 ;; *) shift ;; esac
 done
 
+root=""
 case "$scope" in
-    user) file="$HOME/.claude.json" ;;
-    project) file="$(git rev-parse --show-toplevel)/.mcp.json" ;;
+    user) file="$HOME/.claude.json"; sel='.mcpServers' ;;
+    local) file="$HOME/.claude.json"; root="$(git rev-parse --show-toplevel)"; sel='.projects[$root].mcpServers' ;;
+    project) file="$(git rev-parse --show-toplevel)/.mcp.json"; sel='.mcpServers' ;;
     *) echo "mock claude: scope $scope not supported" >&2; exit 1 ;;
 esac
 [[ -f "$file" ]] || echo '{"mcpServers":{}}' > "$file"
@@ -26,13 +31,16 @@ tmp="$(mktemp)"
 
 case "$sub" in
     add-json)
-        jq --arg n "$name" --argjson c "$json" '.mcpServers[$n] = $c' "$file" > "$tmp" && mv "$tmp" "$file"
+        if [[ -n "${MOCK_CLAUDE_FAIL_ADD:-}" && "$json" == *"$MOCK_CLAUDE_FAIL_ADD"* ]]; then
+            rm -f "$tmp"; echo "mock claude: refusing to add $name" >&2; exit 1
+        fi
+        jq --arg n "$name" --arg root "$root" --argjson c "$json" "$sel[\$n] = \$c" "$file" > "$tmp" && mv "$tmp" "$file"
         echo "Added $name" ;;
     remove)
-        if ! jq -e --arg n "$name" '.mcpServers | has($n)' "$file" >/dev/null; then
+        if ! jq -e --arg n "$name" --arg root "$root" "($sel // {}) | has(\$n)" "$file" >/dev/null; then
             rm -f "$tmp"; echo "No MCP server found with name: $name" >&2; exit 1
         fi
-        jq --arg n "$name" 'del(.mcpServers[$n])' "$file" > "$tmp" && mv "$tmp" "$file"
+        jq --arg n "$name" --arg root "$root" "del($sel[\$n])" "$file" > "$tmp" && mv "$tmp" "$file"
         echo "Removed $name" ;;
     *) rm -f "$tmp"; echo "mock claude: unsupported mcp $sub" >&2; exit 1 ;;
 esac

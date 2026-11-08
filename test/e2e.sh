@@ -87,6 +87,25 @@ resp="$( (printf '%s\n' "$init" '{"jsonrpc":"2.0","method":"notifications/initia
 has "$resp" '"add_server"' "toolshed mcp lists its tools"
 has "$resp" '"install_server"' "including install_server"
 
+section "agent-added tools need approval"
+# What add_server writes: a user entry marked pending.
+cat >> "$TOOLSHED_HOME/registry.yaml" <<'EOF'
+  - id: agentic
+    command: ping-mcp
+    pending: true
+EOF
+expect "tools refuses a pending tool" 1 "$TS" tools agentic
+has "$out" "toolshed approve agentic" "and says how to approve it"
+expect "install refuses a pending tool" 1 "$TS" install agentic -y
+[[ -z "$(claude_cfg agentic)" ]] && ok "nothing was registered" || bad "nothing was registered"
+expect "approve without a terminal needs -y" 1 "$TS" approve agentic </dev/null
+expect "approve -y" 0 "$TS" approve agentic -y
+has "$out" "ping-mcp" "approve shows what will run"
+expect "install after approval" 0 "$TS" install agentic -y
+[[ -n "$(claude_cfg agentic)" ]] && ok "registered after approval" || bad "registered after approval"
+expect "add refuses to replace a tool without --force" 1 "$TS" add agentic --no-check -- sh
+expect "remove agentic" 0 "$TS" remove agentic
+
 section "uninstall / remove"
 expect "uninstall greet" 0 "$TS" uninstall greet
 [[ -z "$(claude_cfg greet)" ]] && ok "gone from claude" || bad "gone from claude"

@@ -34,6 +34,11 @@ type Entry struct {
 	Inputs      []Input           `yaml:"inputs,omitempty"`         // values prompted for at install
 	Clients     []string          `yaml:"clients,omitempty"`        // restrict to "claude" and/or "codex"
 
+	// Pending marks a tool an agent added through `toolshed mcp`. toolshed
+	// won't start or install it until the user approves it (`toolshed
+	// approve`, or the TUI), so an agent can't run a command of its choosing.
+	Pending bool `yaml:"pending,omitempty"`
+
 	Source string `yaml:"-"` // "builtin" or "user"
 }
 
@@ -93,6 +98,40 @@ func (e *Entry) DisplayName() string {
 		return e.Name
 	}
 	return e.ID
+}
+
+// CommandLine is what toolshed would run (or connect to) for this entry, for
+// showing to the user before they approve it.
+func (e *Entry) CommandLine() string {
+	if e.IsRemote() {
+		if e.HeaderCmd != "" {
+			return e.URL + " (headers from: " + e.HeaderCmd + ")"
+		}
+		return e.URL
+	}
+	parts := []string{quoteArg(e.Command)}
+	for _, a := range e.Args {
+		parts = append(parts, quoteArg(a))
+	}
+	return strings.Join(parts, " ")
+}
+
+// SecretKeys lists the entry's secret inputs (what it gets from the keyring).
+func (e *Entry) SecretKeys() []string {
+	var keys []string
+	for _, in := range e.Inputs {
+		if in.Secret {
+			keys = append(keys, in.Key)
+		}
+	}
+	return keys
+}
+
+func quoteArg(s string) string {
+	if s != "" && !strings.ContainsAny(s, " \t\n'\"\\$`;&|<>(){}*?!#~") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Summary is the first line of the description.

@@ -62,6 +62,7 @@ tools:
 | `inputs` | Environment variables prompted for at install. `secret` ones are stored in the OS keyring; others go into the client config. `default` pre-fills a value; `optional` allows skipping it. |
 | `inputs[].share` | Keyring group to share a secret between tools (e.g. two Atlassian tools sharing one token). Defaults to the tool's ID. |
 | `clients` | Install into only `claude` and/or `codex`. Default is both. |
+| `pending` | Set by `toolshed mcp` on tools your agent adds. toolshed won't start or install the tool until you approve it (`toolshed approve <id>`, or `i` in the TUI), which removes the key. |
 
 Unknown keys are errors, so a typo like `comand:` fails loudly instead of
 being ignored. Check a file with `toolshed validate path/to/registry.yaml`.
@@ -79,11 +80,35 @@ When a tool has `secret` inputs, toolshed:
    process.
 
 Without a usable keyring (CI, SSH-only boxes, or `TOOLSHED_NO_KEYRING=1`),
-secrets fall back to plain env vars in the client config.
+secrets fall back to plain env vars in the client config. toolshed refuses to
+do that for a `--project` install, because `.mcp.json` is meant to be
+committed.
+
+What the keyring protects against: tokens sitting in plain text in dotfiles,
+backups and screen shares, and being committed by accident. It doesn't
+isolate secrets from other programs running as you: on macOS, toolshed
+stores them through the `security` tool, so any process of yours can read
+them back.
+
+## Tools your agent adds
+
+`toolshed mcp` lets your agent add tools, and a tool is a command toolshed
+will run. So anything the agent adds is saved with `pending: true`, and
+toolshed won't start it (not even to list its tools) or install it until you
+approve it. `toolshed approve <id>` shows you exactly what it will run first.
+The agent also can't replace a tool that's already in your registry, because
+the replacement would inherit that tool's secrets.
+
+A shared registry (`TOOLSHED_REGISTRY`) is trusted the same way as your own
+file: whoever can change it decides what `toolshed install` and
+`toolshed update` run.
 
 ## Install scope
 
 `toolshed install <id>` installs for your user, so the tool is available
 in every project. `--project` (or choosing "this repo" in the TUI) writes it
 to the repository's `.mcp.json` instead, so it can be committed and shared.
-This is Claude Code only; Codex has no project scope.
+This is Claude Code only; Codex has no project scope. Tools with secrets are
+registered there as plain `toolshed exec …` (found on `PATH`) rather than
+your own toolshed path, so they work for teammates who installed toolshed
+somewhere else. `toolshed update` keeps each tool's scope.

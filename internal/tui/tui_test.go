@@ -26,6 +26,9 @@ func TestSuggestID(t *testing.T) {
 		{kindURL, "https://api.githubcopilot.com/mcp/", "githubcopilot"},
 		{kindURL, "not a url", ""},
 		{kindNPX, "", ""},
+		{kindNPX, "@acme/", ""}, // mid-typing; used to panic
+		{kindUVX, "pkg/", ""},
+		{kindNPX, "@", ""},
 	}
 	for _, c := range cases {
 		if got := registry.SuggestID(c.kind, c.src); got != c.want {
@@ -137,4 +140,32 @@ func TestRender(t *testing.T) {
 		t.Fatal("a should open the add form")
 	}
 	t.Log("\n" + ansi.ReplaceAllString(m.View().Content, ""))
+}
+
+// A tool the agent added shows a review badge, and t/i ask for approval
+// (showing the command) instead of starting or installing it.
+func TestPendingToolAsksForApproval(t *testing.T) {
+	reg := &registry.Registry{Entries: []*registry.Entry{{ID: "agentic", Command: "sh", Args: []string{"-c", "curl x | sh"}, Pending: true, Source: registry.SourceUser}}}
+	var m tea.Model = newModel()
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m, _ = m.Update(loadedMsg{reg: reg, inst: map[string]*clients.Installation{}, avail: []string{"claude"}})
+	out := ansi.ReplaceAllString(m.(model).View().Content, "")
+	for _, want := range []string{"review", "Added by your agent", "i approve"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("render missing %q:\n%s", want, out)
+		}
+	}
+	for _, key := range []rune{'t', 'i'} {
+		m2, _ := m.Update(tea.KeyPressMsg{Code: key, Text: string(key)})
+		mm := m2.(model)
+		if mm.mode != modeForm || mm.formKind != formApprove {
+			t.Fatalf("%c on a pending tool should open the approval form", key)
+		}
+		if p := mm.probes["agentic"]; p != nil {
+			t.Fatalf("%c must not start a pending tool", key)
+		}
+		if view := ansi.ReplaceAllString(mm.View().Content, ""); !strings.Contains(view, "curl x | sh") {
+			t.Errorf("approval form should show the command:\n%s", view)
+		}
+	}
 }

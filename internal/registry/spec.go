@@ -91,6 +91,9 @@ func SuggestID(kind, source string) string {
 		if i := strings.LastIndex(base, "/"); i >= 0 {
 			base = base[i+1:]
 		}
+		if base == "" { // "@scope/" while the user is still typing
+			return ""
+		}
 		if i := strings.Index(base[1:], "@"); i >= 0 { // strip @version
 			base = base[:i+1]
 		}

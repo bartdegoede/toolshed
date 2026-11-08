@@ -44,6 +44,7 @@ func init() {
 		{"install", "<id>... [--project] [--client c] [--set K=V] [-y]", "Install tools into Claude Code / Codex", runInstall},
 		{"uninstall", "<id>... [--purge]", "Remove tools from Claude Code / Codex", runUninstall},
 		{"update", "[<id>...]", "Re-register installed tools with current settings", runUpdate},
+		{"approve", "<id> [-y]", "Review and allow a tool your agent added", runApprove},
 		{"remove", "<id>", "Uninstall a tool and delete it from your toolshed", runRemove},
 		{"list", "[--json]", "Show every tool and where it's installed", runList},
 		{"tools", "<id>", "Start a tool's server and list the tools it offers", runTools},

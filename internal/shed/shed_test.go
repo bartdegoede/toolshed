@@ -1,6 +1,7 @@
 package shed
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,7 +51,7 @@ func TestResolvePrecedence(t *testing.T) {
 
 func TestBuildConfigWrapsSecretsWithKeyring(t *testing.T) {
 	secrets.UseMockForTest(true)
-	cfg, err := BuildConfig(tool(), Values{"TOKEN": "s3cret", "REGION": "eu"})
+	cfg, err := BuildConfig(tool(), Values{"TOKEN": "s3cret", "REGION": "eu"}, "user")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestBuildConfigWrapsSecretsWithKeyring(t *testing.T) {
 
 func TestBuildConfigWithoutKeyringUsesEnv(t *testing.T) {
 	secrets.UseMockForTest(false)
-	cfg, err := BuildConfig(tool(), Values{"TOKEN": "s3cret"})
+	cfg, err := BuildConfig(tool(), Values{"TOKEN": "s3cret"}, "user")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestBuildConfigWithoutKeyringUsesEnv(t *testing.T) {
 }
 
 func TestBuildConfigRemote(t *testing.T) {
-	cfg, _ := BuildConfig(&registry.Entry{ID: "r", URL: "https://x/mcp", HeaderCmd: "h"}, nil)
+	cfg, _ := BuildConfig(&registry.Entry{ID: "r", URL: "https://x/mcp", HeaderCmd: "h"}, nil, "user")
 	if cfg.Type != "http" || cfg.URL != "https://x/mcp" || cfg.HeadersHelper != "h" {
 		t.Fatalf("bad remote config: %+v", cfg)
 	}
@@ -130,5 +131,42 @@ func TestCellarToOpt(t *testing.T) {
 		if got := CellarToOpt(in); got != want {
 			t.Errorf("CellarToOpt(%s) = %s, want %s", in, got, want)
 		}
+	}
+}
+
+func TestPendingToolsNeverRunOrInstall(t *testing.T) {
+	secrets.UseMockForTest(true)
+	e := &registry.Entry{ID: "sneaky", Command: "sh", Args: []string{"-c", "exit 0"}, Pending: true}
+	if _, err := Probe(t.Context(), e); !errors.Is(err, ErrPending) {
+		t.Fatalf("Probe of a pending tool: %v", err)
+	}
+	if _, err := Install(e, nil, InstallOptions{}); !errors.Is(err, ErrPending) {
+		t.Fatalf("Install of a pending tool: %v", err)
+	}
+}
+
+func TestProjectScopeUsesBareToolshedCommand(t *testing.T) {
+	secrets.UseMockForTest(true)
+	cfg, err := BuildConfig(tool(), Values{"TOKEN": "s3cret", "REGION": "eu"}, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Command != "toolshed" {
+		t.Fatalf(".mcp.json is shared, so the wrapper must be on PATH, not %q", cfg.Command)
+	}
+	if cfg, _ = BuildConfig(tool(), Values{"TOKEN": "s3cret"}, "user"); !filepath.IsAbs(cfg.Command) {
+		t.Fatalf("user scope should keep the absolute path, got %q", cfg.Command)
+	}
+}
+
+func TestProjectScopeRefusesPlaintextSecrets(t *testing.T) {
+	secrets.UseMockForTest(false) // no keyring
+	bin := t.TempDir()
+	_ = os.WriteFile(filepath.Join(bin, "demo-server"), []byte("#!/bin/sh\n"), 0o755)
+	_ = os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	t.Setenv("PATH", bin)
+	_, err := Install(tool(), Values{"TOKEN": "s3cret", "REGION": "eu"}, InstallOptions{Scope: "project"})
+	if err == nil || !strings.Contains(err.Error(), "plain text") {
+		t.Fatalf("expected a refusal to write the secret into .mcp.json, got %v", err)
 	}
 }

@@ -42,6 +42,7 @@ const (
 	formInstall
 	formUninstall
 	formDelete
+	formApprove
 )
 
 type probeState struct {
@@ -233,13 +234,20 @@ func (m model) handleKey(key string) (tea.Model, tea.Cmd) {
 	case "a":
 		m.addSpec = &addSpec{}
 		return m.openForm(formAdd, newAddForm(m.addSpec, m.reg, m.detailWidth()))
-	case "t":
-		if e != nil {
-			return m, m.startProbe(e)
-		}
-	case "i", "enter":
+	case "t", "i", "enter":
 		if e == nil {
 			return m, nil
+		}
+		if e.Pending { // agent-added: show what it runs before anything starts it
+			m.confirm = false
+			desc := "Your agent added it. Approving lets toolshed run:\n" + e.CommandLine()
+			if keys := e.SecretKeys(); len(keys) > 0 {
+				desc += "\nwith these secrets from your keyring: " + strings.Join(keys, ", ")
+			}
+			return m.openForm(formApprove, newConfirmForm("Approve "+e.DisplayName()+"?", desc, &m.confirm, m.detailWidth()))
+		}
+		if key == "t" {
+			return m, m.startProbe(e)
 		}
 		vals, _ := shed.Resolve(e, m.inst[e.ID], nil)
 		form, st := newInstallForm(e, vals, m.detailWidth())
@@ -318,6 +326,19 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.setFlash("✓ Added "+entry.ID+" · probing for tools…", true), m.startProbe(added))
 	case formInstall:
 		return m.startInstall(e)
+	case formApprove:
+		if !m.confirm || e == nil {
+			return m, nil
+		}
+		if err := registry.ApproveUserEntry(e.ID); err != nil {
+			return m, m.setFlash("✗ "+oneLine(err.Error()), false)
+		}
+		reg, err := registry.Load()
+		if err != nil {
+			return m, m.setFlash("✗ "+oneLine(err.Error()), false)
+		}
+		m.reg = reg
+		return m, m.setFlash("✓ Approved "+e.ID+" · press i to install, t to see its tools", true)
 	case formUninstall:
 		if !m.confirm || e == nil {
 			return m, nil

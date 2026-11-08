@@ -53,6 +53,27 @@ func RemoveUserEntry(id string) error {
 	return saveUserDoc(doc)
 }
 
+// ApproveUserEntry clears the pending flag on a tool an agent added, so it
+// can be started and installed.
+func ApproveUserEntry(id string) error {
+	doc, tools, err := loadUserDoc()
+	if err != nil {
+		return err
+	}
+	i := indexOfID(tools, id)
+	if i < 0 {
+		return fmt.Errorf("%s is not in your registry (%s)", id, UserPath())
+	}
+	item := tools.Content[i]
+	for j := 0; j+1 < len(item.Content); j += 2 {
+		if item.Content[j].Value == "pending" {
+			item.Content = append(item.Content[:j], item.Content[j+2:]...)
+			break
+		}
+	}
+	return saveUserDoc(doc)
+}
+
 // EnsureUserFile creates the user registry (with an explanatory header) if
 // it doesn't exist yet.
 func EnsureUserFile() error {

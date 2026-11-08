@@ -26,9 +26,10 @@ toolshed does that part for you:
   Service. Your agent's config only says `toolshed exec jira`, and the token
   is injected when the server starts.
 - **Let your agent do it.** `toolshed mcp` is itself an MCP server: ask Claude
-  to "add the Playwright server for this repo" and it finds, checks and
-  installs it. Secrets are never passed through the chat; it sends you to
-  the TUI for those.
+  to "add the Playwright server for this repo" and it finds and adds it. You
+  approve what it will run with one keypress, and it checks and installs it.
+  Secrets are never passed through the chat; it sends you to the TUI for
+  those.
 - **Share a toolbox.** Your tools live in one small YAML file. Commit it, and
   your team gets the same setup with `toolshed install`.
 
@@ -94,6 +95,12 @@ The agent gets `list_servers`, `inspect_server`, `add_server`,
 `install_server` and `uninstall_server`. New servers load the next time the
 client reconnects (`/mcp` in Claude Code).
 
+A server the agent adds is **pending** until you approve it: toolshed won't
+start or install it before you've seen the command it runs. Approve it with
+`toolshed approve <id>`, or select it in `toolshed` and press `i`. The agent
+also can't replace a tool you already have, so it can never point an existing
+tool (and its secrets) at a different command.
+
 ## Commands
 
 | | |
@@ -105,6 +112,7 @@ client reconnects (`/mcp` in Claude Code).
 | `toolshed tools <id>` | Start a server and list its tools |
 | `toolshed list` | Everything, and where it's installed (`--json`) |
 | `toolshed update` | Re-register installed tools after editing the registry |
+| `toolshed approve <id>` | Review and allow a tool your agent added |
 | `toolshed remove <id>` | Uninstall and delete from your toolshed |
 | `toolshed edit` | Open your registry in `$EDITOR` |
 | `toolshed mcp` | Serve toolshed to your agent over MCP |
@@ -129,7 +137,7 @@ exactly how secrets are handled.
 ## Build your own server
 
 [`examples/ping-mcp`](examples/ping-mcp) is a complete, genuinely useful MCP
-server in about 120 lines of Go: it sends push notifications to your phone
+server in about 110 lines of Go: it sends push notifications to your phone
 ("run the migration and ping me when it's done"). Copy it, add your tools,
 then `toolshed add mine -- my-server`.
 

@@ -77,6 +77,9 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) ([]string, err
 	if opts.Scope == "" {
 		opts.Scope = "user"
 	}
+	if err := CheckApproved(e); err != nil {
+		return nil, err
+	}
 	targets := Targets(e, opts)
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("no target client: install Claude Code or Codex (or check %s's clients list)", e.ID)
@@ -88,8 +91,13 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) ([]string, err
 		if vals[in.Key] == "" && !in.Optional {
 			return nil, fmt.Errorf("%s needs a value for %s", e.ID, in.Key)
 		}
+		// Project scope writes .mcp.json, which is meant to be committed.
+		// Without a keyring the secret would go into it in plain text.
+		if opts.Scope == "project" && in.Secret && vals[in.Key] != "" && !secrets.Available() {
+			return nil, fmt.Errorf("%s: no OS keyring, so %s would be written into the repository's .mcp.json in plain text; install it for your user instead", e.ID, in.Key)
+		}
 	}
-	cfg, err := BuildConfig(e, vals)
+	cfg, err := BuildConfig(e, vals, opts.Scope)
 	if err != nil {
 		return nil, err
 	}
@@ -105,10 +113,28 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) ([]string, err
 	return done, errors.Join(errs...)
 }
 
+// ErrPending is returned for tools an agent added that the user hasn't
+// approved yet.
+var ErrPending = errors.New("added by your agent and not approved yet")
+
+// CheckApproved refuses tools an agent added until the user has seen what
+// they run and approved them. Install and Probe both call it, so no front
+// end (CLI, TUI, MCP) can start an unapproved command.
+func CheckApproved(e *registry.Entry) error {
+	if e.Pending {
+		return fmt.Errorf("%s was %w: review what it runs with `toolshed approve %s` (or select it in `toolshed`)", e.ID, ErrPending, e.ID)
+	}
+	return nil
+}
+
 // BuildConfig produces the client registration for an entry. Secret values
 // are written to the keyring and the server is wrapped in `toolshed exec`;
 // without a keyring they fall back to plain env vars in the client config.
-func BuildConfig(e *registry.Entry, vals Values) (clients.Config, error) {
+//
+// For project scope the wrapper is the bare `toolshed` command rather than
+// this binary's absolute path, because .mcp.json is shared through the
+// repository and teammates have toolshed installed in other places.
+func BuildConfig(e *registry.Entry, vals Values, scope string) (clients.Config, error) {
 	if e.IsRemote() {
 		return clients.Config{Type: "http", URL: e.URL, HeadersHelper: e.HeaderCmd}, nil
 	}
@@ -134,9 +160,12 @@ func BuildConfig(e *registry.Entry, vals Values) (clients.Config, error) {
 	}
 	cfg := clients.Config{Type: "stdio", Command: e.Command, Args: e.Args, Env: env}
 	if len(refs) > 0 {
-		self, err := SelfPath()
-		if err != nil {
-			return clients.Config{}, err
+		self := "toolshed"
+		if scope != "project" {
+			var err error
+			if self, err = SelfPath(); err != nil {
+				return clients.Config{}, err
+			}
 		}
 		cfg.Command, cfg.Args = self, ExecArgs(e, refs)
 	}

@@ -158,6 +158,9 @@ func (m model) renderList() string {
 
 // badges renders one dot per client: colored when installed there, faint when not.
 func (m model) badges(e *registry.Entry) string {
+	if e.Pending {
+		return warnStyle.Render("review")
+	}
 	inst := m.inst[e.ID]
 	var parts []string
 	for _, c := range clients.All {
@@ -188,6 +191,9 @@ func (m model) renderDetail() string {
 		tag = "your tool"
 	}
 	b.WriteString("\n" + nameStyle.Render(e.DisplayName()) + "  " + faintStyle.Render(e.ID+" · "+tag) + "\n\n")
+	if e.Pending {
+		b.WriteString(warnStyle.Width(w).Render("Added by your agent. Check what it runs below, then press i to approve it.") + "\n\n")
+	}
 	if d := strings.Join(strings.Fields(e.Description), " "); d != "" {
 		b.WriteString(textStyle.Width(w).Render(d) + "\n\n")
 	}
@@ -303,7 +309,9 @@ func (m model) renderFooter() string {
 		text = keyHelp("enter", "next", "shift+tab", "back", "esc", "cancel")
 	case m.mode == modeBrowse:
 		keys := []string{"↑↓", "move", "a", "add"}
-		if e := m.selected(); e != nil {
+		if e := m.selected(); e != nil && e.Pending {
+			keys = append(keys, "i", "approve", "d", "delete")
+		} else if e != nil {
 			if m.inst[e.ID] != nil {
 				keys = append(keys, "i", "reinstall", "u", "uninstall")
 			} else {
