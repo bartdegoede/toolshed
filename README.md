@@ -51,6 +51,10 @@ Prebuilt binaries for macOS and Linux are on the
 You need [Claude Code](https://claude.com/claude-code) and/or
 [Codex](https://github.com/openai/codex) on your PATH. macOS and Linux.
 
+Homebrew installs shell completions for commands and tool ids. Otherwise,
+load them with `toolshed completion bash|zsh|fish`, e.g.
+`source <(toolshed completion zsh)` in your `~/.zshrc`.
+
 ## Quickstart
 
 ```sh
@@ -120,6 +124,7 @@ tool (and its secrets) at a different command.
 | `toolshed update` | Re-register installed tools after editing the registry (asks first if what a tool runs changed) |
 | `toolshed upgrade [<id>…]` | Move npx/uvx tools to the newest release of their package |
 | `toolshed approve <id>` | Review and allow a tool your agent added |
+| `toolshed secret set <id> [KEY]` | Replace a secret, e.g. a rotated token (typed at a hidden prompt, or piped in) |
 | `toolshed remove <id>` | Uninstall and delete from your toolshed |
 | `toolshed edit` | Open your registry in `$EDITOR` |
 | `toolshed mcp` | Serve toolshed to your agent over MCP |

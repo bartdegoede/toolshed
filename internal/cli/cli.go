@@ -46,6 +46,7 @@ func init() {
 		{"update", "[<id>...] [-y]", "Re-register installed tools with current settings", runUpdate},
 		{"upgrade", "[<id>...] [--dry-run]", "Move npx/uvx tools to the newest release of their package", runUpgrade},
 		{"approve", "<id> [-y]", "Review and allow a tool your agent added", runApprove},
+		{"secret", "set <id> [KEY]", "Replace a tool's secret (e.g. a rotated token)", runSecret},
 		{"remove", "<id>", "Uninstall a tool and delete it from your toolshed", runRemove},
 		{"list", "[--json]", "Show every tool and where it's installed", runList},
 		{"doctor", "[--no-start] [--json]", "Check that every installed tool works", runDoctor},
@@ -53,7 +54,9 @@ func init() {
 		{"edit", "", "Open your registry in $EDITOR", runEdit},
 		{"mcp", "", "Serve toolshed over MCP, so your agent can add tools itself", runMCP},
 		{"validate", "[file]", "Check a registry file", runValidate},
+		{"completion", "bash|zsh|fish", "Print a shell completion script", runCompletion},
 		{"exec", "<id> [--secret KEY=group]... -- <command> [args...]", "Run a server with its secrets (used by Claude/Codex)", runExec},
+		{"__ids", "", "", runIDs},
 	}
 }
 
@@ -102,10 +105,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "%s — add MCP servers and tools to Claude Code and Codex\n\n", bold("toolshed"))
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  toolshed                 Open the interactive toolshed")
-	for _, c := range commands {
-		if c.name == "exec" {
-			continue
-		}
+	for _, c := range visibleCommands() {
 		fmt.Fprintf(w, "  toolshed %-15s %s\n", c.name, c.help)
 	}
 	fmt.Fprintf(w, `

@@ -99,6 +99,14 @@ json="$("$TS" doctor --no-start --json 2>/dev/null)"
 [[ "$(jq -r '.tools[] | select(.id=="greet") | .findings[0].level' <<<"$json")" == "error" ]] && ok "doctor --json has the finding" || bad "doctor --json has the finding" "$json"
 expect "fix it" 0 "$TS" update greet -y
 
+section "secret set"
+out="$(printf 'rotated\n' | "$TS" secret set greet 2>&1)" && ok "secret set reads the value from stdin" || bad "secret set reads the value from stdin" "$out"
+has "$(claude_cfg greet)" '"NTFY_TOPIC":"rotated"' "without a keyring it re-registers with the new value"
+expect "secret set on a tool without secrets" 1 "$TS" secret set hi
+expect "completion zsh" 0 "$TS" completion zsh
+has "$out" "compdef _toolshed toolshed" "prints a zsh script"
+ids="$("$TS" __ids)"; has "$ids" "greet" "__ids lists tool ids for completion"
+
 section "exec"
 resp="$( (printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"e2e","version":"1"}}}'; sleep 1) | "$TS" exec greet -- ping-mcp 2>&1)"
 has "$resp" '"name":"ping-mcp"' "exec hands off to the real server"

@@ -84,6 +84,12 @@ secrets fall back to plain env vars in the client config. toolshed refuses to
 do that for a `--project` install, because `.mcp.json` is meant to be
 committed.
 
+To replace a secret later (a rotated API token, say), run
+`toolshed secret set <id>`. Installed tools read the keyring each time they
+start, so there's nothing to reinstall. The value is typed at a hidden
+prompt, or piped in (`pbpaste | toolshed secret set jira`); it's never an
+argument, where it would end up in your shell history.
+
 What the keyring protects against: tokens sitting in plain text in dotfiles,
 backups and screen shares, and being committed by accident. It doesn't
 isolate secrets from other programs running as you: on macOS, toolshed
