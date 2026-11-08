@@ -5,6 +5,11 @@ version: 2
 
 project_name: toolshed
 
+before:
+  hooks:
+    # Shell completions, shipped in the archives and installed by the cask.
+    - sh -c 'rm -rf completions && mkdir completions && go run ./cmd/toolshed completion bash > completions/toolshed.bash && go run ./cmd/toolshed completion zsh > completions/_toolshed && go run ./cmd/toolshed completion fish > completions/toolshed.fish'
+
 builds:
   - id: toolshed
     main: ./cmd/toolshed
@@ -17,7 +22,7 @@ builds:
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [LICENSE, README.md]
+    files: [LICENSE, README.md, completions/*]
 
 checksum:
   name_template: checksums.txt
@@ -35,6 +40,10 @@ homebrew_casks:
       name: homebrew-tap
       token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
     homepage: https://github.com/bartdegoede/toolshed
+    completions:
+      bash: completions/toolshed.bash
+      zsh: completions/_toolshed
+      fish: completions/toolshed.fish
     description: Add any MCP server to Claude Code and Codex in seconds
     license: MIT
     # Unsigned binaries get quarantined by macOS Gatekeeper; clear the flag.
