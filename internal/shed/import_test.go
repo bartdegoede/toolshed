@@ -24,10 +24,10 @@ func TestSecretName(t *testing.T) {
 func TestSecretValue(t *testing.T) {
 	for v, want := range map[string]bool{
 		"postgresql://app:hunter2@db.internal/app": true,
-		"redis://:s3cret@cache:6379":              true,
-		"https://user@example.com":                false,
-		"https://example.com/mcp":                 false,
-		"debug":                                   false,
+		"redis://:s3cret@cache:6379":               true,
+		"https://user@example.com":                 false,
+		"https://example.com/mcp":                  false,
+		"debug":                                    false,
 	} {
 		if got := SecretValue(v); got != want {
 			t.Errorf("SecretValue(%q) = %v, want %v", v, got, want)
