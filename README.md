@@ -102,7 +102,8 @@ finds the servers Claude Code and Codex already have, adds them to your
 toolshed, and moves their tokens out of `~/.claude.json` and Codex's config
 into your keychain. It guesses which env vars are secrets from their names
 (`*TOKEN*`, `*API_KEY*`, `*PASSWORD*`, …) and asks you to confirm each one.
-`--dry-run` shows what it would do first.
+`--dry-run` shows what it would do first. In the TUI, press `m` to see them
+and import them one at a time.
 
 ## Let your agent manage its tools
 

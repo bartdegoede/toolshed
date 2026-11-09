@@ -187,3 +187,55 @@ func TestChangedToolAsksBeforeReinstall(t *testing.T) {
 		t.Errorf("review form should show the new command:\n%s", view)
 	}
 }
+
+// Servers the clients have that toolshed doesn't manage show up on the import
+// screen, with their values masked, and enter asks which are secrets.
+func TestImportScreen(t *testing.T) {
+	reg := &registry.Registry{Entries: []*registry.Entry{{ID: "mine", Command: "sh", Source: registry.SourceUser}}}
+	inst := map[string]*clients.Installation{
+		"byhand": {ClaudeScope: "user", Config: clients.Config{Type: "stdio", Command: "srv",
+			Env: map[string]string{"API_TOKEN": "sk-live-abcdefghijkl", "LEVEL": "debug"}}},
+		"legacy": {Codex: true, CodexScope: "user", CodexConfig: clients.Config{Type: "sse", URL: "https://old"}, Config: clients.Config{Type: "sse", URL: "https://old"}},
+	}
+	var m tea.Model = newModel()
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m, _ = m.Update(loadedMsg{reg: reg, inst: inst, avail: []string{"claude", "codex"}})
+	if out := ansi.ReplaceAllString(m.(model).View().Content, ""); !strings.Contains(out, "m import 1") {
+		t.Fatalf("footer should offer the import (1 importable):\n%s", out)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'm', Text: "m"})
+	mm := m.(model)
+	if mm.mode != modeImport || len(mm.imports) != 2 {
+		t.Fatalf("m should open the import screen with both servers, got mode %v, %d", mm.mode, len(mm.imports))
+	}
+	out := ansi.ReplaceAllString(mm.View().Content, "")
+	for _, want := range []string{"NOT IN YOUR TOOLSHED", "byhand", "API_TOKEN", "sk-l… (20 chars)", "looks like a secret", "legacy"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("import screen missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "sk-live-abcdefghijkl") {
+		t.Fatalf("a secret value is on screen:\n%s", out)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	mm = m.(model)
+	if mm.mode != modeForm || mm.formKind != formImport || len(mm.impSecrets) != 1 || mm.impSecrets[0] != "API_TOKEN" {
+		t.Fatalf("enter should ask which values are secrets, API_TOKEN ticked: mode %v kind %v %v", mm.mode, mm.formKind, mm.impSecrets)
+	}
+	if out := ansi.ReplaceAllString(mm.View().Content, ""); !strings.Contains(out, "Which of these are secrets?") {
+		t.Fatalf("form not shown:\n%s", out)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if mm := m.(model); mm.mode != modeImport {
+		t.Fatalf("esc in the form goes back to the import screen, got %v", mm.mode)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if mm := m.(model); mm.mode != modeImport || !strings.Contains(mm.flash, "Can't import legacy") {
+		t.Fatalf("a server that can't be imported says why: %v %q", mm.mode, mm.flash)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if mm := m.(model); mm.mode != modeBrowse || mm.inImport {
+		t.Fatal("esc leaves the import screen")
+	}
+}
