@@ -63,7 +63,7 @@ gh api repos/bartdegoede/homebrew-tap/contents/Casks/toolshed.rb -q .path   # ta
 ## Docs
 
 docs/*.md are the user docs, and the source of https://toolshed.run (the
-bartdegoede/toolshed.github.io repo pulls them in at build time, pinned to
+bartdegoede/toolshed.run repo pulls them in at build time, pinned to
 the latest release). Each page starts with `# Title` and a
 `<!-- summary: … -->` line, which the site shows in its page list. Link
 between pages with relative `.md` links. A behaviour change isn't done until
