@@ -84,7 +84,7 @@ type model struct {
 	imports    []shed.Import // servers the clients have that aren't in the toolshed
 	impCursor  int
 	impSecrets *[]string // keys ticked as secrets in the import form
-	inImport   bool     // the import screen is open (also while its form or import runs)
+	inImport   bool      // the import screen is open (also while its form or import runs)
 }
 
 // ── messages ──
