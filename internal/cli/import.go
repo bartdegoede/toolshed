@@ -142,16 +142,18 @@ func importOne(reg *registry.Registry, im *shed.Import, interactive, dry, noInst
 		install = false
 	}
 	if install {
-		scope := im.Inst.ClaudeScope
-		if scope == "" {
-			scope = "user"
-		}
-		if _, err := shed.Install(&e, vals, shed.InstallOptions{Scope: scope, Clients: im.Clients}); err != nil {
+		opts := shed.KeepScopes(im.Inst)
+		opts.Clients = im.Clients
+		res, err := shed.Install(&e, vals, opts)
+		if err != nil {
 			return false, err
+		}
+		for _, n := range res.Notes {
+			fmt.Printf("  %s %s\n", amber("!"), n)
 		}
 		if im.Rename {
 			for _, c := range im.Clients {
-				if err := clients.Unregister(c, im.Name, scope); err != nil {
+				if err := clients.Unregister(c, im.Name, im.Inst.Scope(c)); err != nil {
 					fmt.Printf("  %s couldn't remove the old %s from %s: %v\n", amber("!"), im.Name, c, err)
 				}
 			}

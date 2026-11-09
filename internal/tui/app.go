@@ -404,11 +404,15 @@ func (m model) startInstall(e *registry.Entry) (tea.Model, tea.Cmd) {
 	// Keep previously stored/installed values the form didn't change.
 	resolved, _ := shed.Resolve(e, m.inst[e.ID], vals)
 	return m.runBusy("Installing "+e.DisplayName(), func() doneMsg {
-		done, err := shed.Install(e, resolved, shed.InstallOptions{Scope: scope})
+		res, err := shed.Install(e, resolved, shed.InstallOptions{Scope: scope})
 		if err != nil {
 			return doneMsg{err: err}
 		}
-		return doneMsg{text: "Installed " + e.ID + " → " + strings.Join(done, ", ")}
+		text := "Installed " + e.ID + " → " + strings.Join(res.Clients, ", ")
+		if len(res.Notes) > 0 {
+			text += " · " + res.Notes[0]
+		}
+		return doneMsg{text: text}
 	})
 }
 

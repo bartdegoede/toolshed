@@ -60,3 +60,29 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
           (cd examples/ping-mcp && govulncheck ./...)
+
+  # toolshed against the real Claude Code and Codex CLIs (test/contract.sh).
+  # Pinned so a client release can't break CI unannounced; bump them on
+  # purpose (and run this job) when the clients change their config.
+  contract:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: contract (${{ matrix.os }})
+    env:
+      CLAUDE_CODE_VERSION: 2.1.319
+      CODEX_VERSION: 0.167.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: extractions/setup-just@v4
+      - name: Install the real clients
+        run: npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" "@openai/codex@$CODEX_VERSION"
+      - name: Contract tests
+        run: just test-contract

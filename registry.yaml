@@ -70,7 +70,7 @@ tools:
     url: https://mcp.deepwiki.com/mcp
 
   # Remote server with auth: headers_helper prints JSON headers on connect,
-  # so the token never sits in a config file. Claude Code only.
+  # so the token never sits in a config file.
   - id: github
     name: GitHub
     description: |

@@ -56,3 +56,16 @@ clean:
 demo:
     vhs demo/demo.tape
     security delete-generic-password -s toolshed -a ping/NTFY_TOPIC >/dev/null 2>&1 || true
+
+# Contract tests against the real claude and codex CLIs, in a temp HOME
+[group('test')]
+test-contract: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="{{justfile_directory()}}"
+    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+    mkdir -p "$tmp/home" "$tmp/codex"
+    export HOME="$tmp/home" TOOLSHED_HOME="$tmp/toolshed" TOOLSHED_NO_KEYRING=1 CODEX_HOME="$tmp/codex"
+    export TOOLSHED_BIN="$root/{{bin}}"
+    cd "$tmp/home"
+    "$root/test/contract.sh"

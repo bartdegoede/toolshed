@@ -40,7 +40,7 @@ type addArgs struct {
 
 type installArgs struct {
 	ID     string            `json:"id" jsonschema:"the server's id"`
-	Scope  string            `json:"scope,omitempty" jsonschema:"user (all projects, default) or project (this repository only, Claude Code)"`
+	Scope  string            `json:"scope,omitempty" jsonschema:"user (all projects, default) or project (this repository only: .mcp.json for Claude Code, .codex/config.toml for Codex)"`
 	Values map[string]string `json:"values,omitempty" jsonschema:"values for non-secret inputs; never secrets"`
 }
 
@@ -51,7 +51,7 @@ func newMCPServer() *mcp.Server {
 			"inspect_server to start it and see its tools, and install_server to make it available. " +
 			"Servers you add are pending until the user approves them in a terminal (`toolshed approve <id>`) " +
 			"or in the toolshed TUI; until then they can't be inspected or installed. " +
-			"Newly installed servers load when the client restarts or reconnects (/mcp in Claude Code). " +
+			"Newly installed servers load when the client reconnects: /mcp in Claude Code, a new session in Codex. " +
 			"Never ask the user to paste secrets into the chat; secrets are entered in the toolshed TUI or terminal.",
 	})
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
@@ -199,12 +199,16 @@ func newMCPServer() *mcp.Server {
 			return toolError(fmt.Errorf("%s needs %s first: ask the user to run `toolshed install %s` in a terminal to enter it privately",
 				e.ID, inputKeys(missing), e.ID)), nil, nil
 		}
-		done, err := shed.Install(e, vals, opts)
+		res, err := shed.Install(e, vals, opts)
 		if err != nil {
 			return toolError(err), nil, nil
 		}
-		return textResult(fmt.Sprintf("Installed %s into %s. It becomes available after the client reconnects (in Claude Code: /mcp, or restart).",
-			e.ID, strings.Join(done, " and "))), nil, nil
+		msg := fmt.Sprintf("Installed %s into %s. It becomes available after the client reconnects (Claude Code: /mcp; Codex: start a new session).",
+			e.ID, strings.Join(res.Clients, " and "))
+		for _, n := range res.Notes {
+			msg += " Note: " + n + "."
+		}
+		return textResult(msg), nil, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{

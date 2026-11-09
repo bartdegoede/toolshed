@@ -19,7 +19,7 @@ import (
 
 func runInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	project := fs.Bool("project", false, "install for this repository only (Claude Code)")
+	project := fs.Bool("project", false, "install for this repository only (.mcp.json for Claude Code, .codex/config.toml for Codex)")
 	client := fs.String("client", "", "only install into claude or codex")
 	yes := fs.Bool("y", false, "never prompt; take values from --set and the environment")
 	var set multi
@@ -113,13 +113,16 @@ func installOne(e *registry.Entry, inst *clients.Installation, overrides shed.Va
 		return fmt.Errorf("missing %s (pass --set %s=…)", strings.Join(keys, ", "), keys[0])
 	}
 
-	done, err := shed.Install(e, vals, opts)
-	if len(done) > 0 {
-		where := strings.Join(done, ", ")
+	res, err := shed.Install(e, vals, opts)
+	if len(res.Clients) > 0 {
+		where := strings.Join(res.Clients, ", ")
 		if opts.Scope == "project" {
 			where += " (this repo)"
 		}
 		fmt.Printf("%s %s → %s\n", green("✓"), bold(e.ID), where)
+	}
+	for _, n := range res.Notes {
+		fmt.Printf("  %s %s\n", amber("!"), n)
 	}
 	return err
 }
@@ -248,14 +251,10 @@ func runUpdate(args []string) error {
 }
 
 // reregister installs e again where it's installed now, keeping earlier
-// values and the Claude scope (user, local or project).
+// values and each client's scope.
 func reregister(e *registry.Entry, inst *clients.Installation) error {
 	vals, _ := shed.Resolve(e, inst, nil)
-	scope := inst.ClaudeScope
-	if scope == "" {
-		scope = "user" // Codex-only install
-	}
-	_, err := shed.Install(e, vals, shed.InstallOptions{Scope: scope, Clients: inst.Clients()})
+	_, err := shed.Install(e, vals, shed.KeepScopes(inst))
 	return err
 }
 
