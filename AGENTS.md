@@ -34,6 +34,18 @@ just lint
 - `just test-contract` runs toolshed against the real claude and codex CLIs
   (versions pinned in CI's contract job). Run it after touching
   internal/clients; bump the pins on purpose.
+- Test what a flow does, not what it draws. Every user-facing flow (TUI
+  keys, CLI commands, MCP tools) needs a test that drives it the way a user
+  does and checks the outcome: the registry, the clients' config, the
+  keyring. "The form opens" is not a test. In the TUI use `press` (in
+  internal/tui), which delivers keys like Bubble Tea does, and add the flow
+  to test/tui_e2e.py, which drives the real binary in a pty.
+- Check a new test catches the bug: break the code on purpose and watch it
+  fail before relying on it.
+- When reporting work as verified, say what was checked and what wasn't.
+- TUI: Bubble Tea copies the model on every update, so never bind a huh form
+  to a field of the model (`Value(&m.x)`); bind it to a pointer the model
+  holds. A test enforces this.
 - TUI: Bubble Tea v2 / Lipgloss v2 / huh v2 (charm.land/... import paths).
 - Never let tests touch the real ~/.claude.json, ~/.codex or keychain: use
   secrets.UseMockForTest, t.Setenv("HOME", t.TempDir()), TOOLSHED_HOME.
