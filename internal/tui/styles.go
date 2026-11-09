@@ -9,7 +9,8 @@ import (
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-const (
+// Variables so tests can shorten them.
+var (
 	spinnerInterval = 80 * time.Millisecond
 	flashDuration   = 4 * time.Second
 )

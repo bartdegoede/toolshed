@@ -46,6 +46,9 @@ test-e2e: build
     export TOOLSHED_BIN="$root/{{bin}}" PATH="$root/test/mocks:$tmp/bin:$PATH"
     git config --global user.email e2e@example.com 2>/dev/null || true
     "$root/test/e2e.sh"
+    # The TUI, driven with keys in a pty, on a fresh HOME.
+    rm -rf "$tmp/home" "$tmp/toolshed" && mkdir -p "$tmp/home" "$tmp/toolshed"
+    (cd "$tmp/home" && python3 "$root/test/tui_e2e.py")
 
 # Remove build artifacts
 clean:

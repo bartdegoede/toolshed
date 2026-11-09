@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -242,21 +243,46 @@ func TestImportScreen(t *testing.T) {
 }
 
 // press sends keys the way Bubble Tea does: the model is copied on every
-// update, and the commands each update returns run before the next key.
+// update, and the commands an update returns (batches and sequences
+// included) run, in order, before the next key. Spinner ticks and flash
+// timeouts are dropped.
 func press(t *testing.T, m tea.Model, keys ...tea.KeyPressMsg) tea.Model {
 	t.Helper()
 	for _, k := range keys {
 		var cmd tea.Cmd
 		m, cmd = m.Update(k)
-		for i := 0; i < 5 && cmd != nil; i++ {
-			msg := cmd()
-			if _, batch := msg.(tea.BatchMsg); batch || msg == nil {
-				break
-			}
-			m, cmd = m.Update(msg)
-		}
+		m = run(t, m, cmd, 0)
 	}
 	return m
+}
+
+func run(t *testing.T, m tea.Model, cmd tea.Cmd, depth int) tea.Model {
+	t.Helper()
+	if cmd == nil {
+		return m
+	}
+	if depth > 50 {
+		t.Fatal("commands keep producing commands")
+	}
+	msg := cmd()
+	switch msg := msg.(type) {
+	case nil, tickMsg, flashClearMsg:
+		return m
+	case tea.BatchMsg:
+		for _, c := range msg {
+			m = run(t, m, c, depth+1)
+		}
+		return m
+	}
+	// tea.Sequence's message is an unexported []Cmd: run its commands in order.
+	if v := reflect.ValueOf(msg); v.Kind() == reflect.Slice && v.Type().Elem() == reflect.TypeFor[tea.Cmd]() {
+		for i := 0; i < v.Len(); i++ {
+			m = run(t, m, v.Index(i).Interface().(tea.Cmd), depth+1)
+		}
+		return m
+	}
+	m, next := m.Update(msg)
+	return run(t, m, next, depth+1)
 }
 
 // Answers given in a form must reach the code that acts on them, even
