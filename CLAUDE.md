@@ -21,6 +21,9 @@ just lint
 - npx/uvx packages are pinned on add (internal/pkgs); keep the built-in
   examples in registry.yaml pinned too (a test checks it), and bump them with
   `toolshed upgrade --dry-run` before a release.
+- `toolshed import` (shed.Imports) never writes env values into the registry:
+  imported vars become inputs, so a missed secret can't end up in a shared
+  registry file.
 - Label PRs (security, enhancement, bug, documentation, dependencies): the
   release notes are grouped by those labels (.github/release.yml).
 - TUI: Bubble Tea v2 / Lipgloss v2 / huh v2 (charm.land/... import paths).

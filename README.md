@@ -90,6 +90,18 @@ npm and Python packages are pinned to their current release when you add
 them, so a server only changes when you say so: `toolshed upgrade` moves them
 to the newest release (`--dry-run` shows what it would do first).
 
+## Already have servers set up?
+
+```sh
+toolshed import
+```
+
+finds the servers Claude Code and Codex already have, adds them to your
+toolshed, and moves their tokens out of `~/.claude.json` and Codex's config
+into your keychain. It guesses which env vars are secrets from their names
+(`*TOKEN*`, `*API_KEY*`, `*PASSWORD*`, …) and asks you to confirm each one.
+`--dry-run` shows what it would do first.
+
 ## Let your agent manage its tools
 
 ```sh
@@ -116,6 +128,7 @@ tool (and its secrets) at a different command.
 | --- | --- |
 | `toolshed` | Interactive TUI |
 | `toolshed add <id> …` | Add a tool (`--npx`, `--uvx`, `--url`, or `-- <command>`) |
+| `toolshed import [<name>…]` | Adopt servers Claude Code and Codex already have, moving their tokens to the keychain |
 | `toolshed install <id>…` | Install into Claude Code and Codex (`--project` for this repo only) |
 | `toolshed uninstall <id>…` | Remove from the clients (`--purge` also deletes secrets) |
 | `toolshed tools <id>` | Start a server and list its tools |

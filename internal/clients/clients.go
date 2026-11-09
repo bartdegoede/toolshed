@@ -31,6 +31,7 @@ type Config struct {
 	Args          []string          `json:"args,omitempty"`
 	Env           map[string]string `json:"env,omitempty"`
 	URL           string            `json:"url,omitempty"`
+	Headers       map[string]string `json:"headers,omitempty"` // static headers (Claude); toolshed never writes them
 	HeadersHelper string            `json:"headersHelper,omitempty"`
 }
 

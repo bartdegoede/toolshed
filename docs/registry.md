@@ -124,6 +124,37 @@ won't start or re-install a changed tool, and tells the agent to send you to
 A shared registry is still trusted for tools you haven't installed yet:
 whoever can change it decides what a first `toolshed install` runs.
 
+## Importing servers you already have
+
+`toolshed import` looks for servers in `~/.claude.json` (user scope, plus
+the current repository's local and `.mcp.json` servers) and in Codex's
+`config.toml` that aren't in your registry yet. For each one it:
+
+1. shows the command (or URL) and asks whether to import it;
+2. lists its environment variables and asks which hold secrets, starting
+   from a guess based on the name (`*TOKEN*`, `*SECRET*`, `*PASSWORD*`,
+   `*API_KEY*`, `*_KEY`, …);
+3. adds it to your registry, with every variable as an input. The registry
+   never gets the values, so it stays safe to share;
+4. installs it again where it was: secrets go to the keyring and the server
+   is registered through `toolshed exec`, so the plain-text token leaves the
+   client's config. Other values stay in the client's config.
+
+`-y` imports everything with the guessed secrets, `--dry-run` only shows what
+it would do, and `--no-install` only adds to the registry. `toolshed import
+<name>` imports one server.
+
+Names that aren't valid ids (`My_Server`) are imported as one (`my-server`),
+and the old name is removed. A server that Claude Code and Codex run
+differently under the same name is imported from Claude Code, and Codex's is
+left alone. Servers that use the old SSE transport, or send fixed headers,
+are skipped: toolshed can't keep those headers in the keyring yet. A server
+registered through toolshed whose entry you deleted is imported with its
+secrets where they already are in the keyring.
+
+Imported packages aren't pinned (toolshed keeps exactly what was running);
+`toolshed doctor` points them out, and `toolshed upgrade` pins them.
+
 ## Checking your tools
 
 `toolshed doctor` checks every installed tool and says how to fix what it

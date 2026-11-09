@@ -112,10 +112,10 @@ func printDoctor(avail []string, report []shed.Health, orphans, unmanaged []stri
 	}
 	for _, name := range orphans {
 		fmt.Printf("%s %s is registered through toolshed but isn't in your registry anymore%s\n",
-			amber("!"), bold(name), dim("  → claude mcp remove "+name+" / codex mcp remove "+strings.ReplaceAll(name, "-", "_")))
+			amber("!"), bold(name), dim("  → toolshed import "+name+" to get it back, or remove it from the client"))
 	}
 	if len(unmanaged) > 0 {
-		fmt.Printf("%s %d other server%s not managed by toolshed: %s\n", dim("·"), len(unmanaged), plural(len(unmanaged)), strings.Join(unmanaged, ", "))
+		fmt.Printf("%s %d other server%s not managed by toolshed: %s%s\n", dim("·"), len(unmanaged), plural(len(unmanaged)), strings.Join(unmanaged, ", "), dim("  → toolshed import"))
 	}
 }
 

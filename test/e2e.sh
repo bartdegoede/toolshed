@@ -137,6 +137,26 @@ expect "install after approval" 0 "$TS" install agentic -y
 expect "add refuses to replace a tool without --force" 1 "$TS" add agentic --no-check -- sh
 expect "remove agentic" 0 "$TS" remove agentic
 
+section "import"
+# A server set up by hand in both clients, with its token in plain text.
+claude mcp add-json byhand '{"type":"stdio","command":"ping-mcp","env":{"NTFY_TOPIC":"t1","NTFY_SERVER":"https://n.example"}}' -s user >/dev/null
+codex mcp add byhand --env NTFY_TOPIC=t1 --env NTFY_SERVER=https://n.example -- ping-mcp >/dev/null
+expect "doctor points at import" 0 "$TS" doctor --no-start
+has "$out" "toolshed import" "for servers toolshed doesn't manage"
+expect "import --dry-run" 0 "$TS" import --dry-run
+has "$out" "byhand" "lists the server"
+grep -q "id: byhand" "$TOOLSHED_HOME/registry.yaml" && bad "--dry-run changed the registry" || ok "--dry-run changed nothing"
+expect "import without a terminal needs -y" 1 "$TS" import </dev/null
+expect "import -y" 0 "$TS" import byhand -y
+reg="$(cat "$TOOLSHED_HOME/registry.yaml")"
+has "$reg" "id: byhand" "added to the registry"
+grep -q "n.example" "$TOOLSHED_HOME/registry.yaml" && bad "no values in the registry" "$reg" || ok "no values in the registry"
+has "$(claude_cfg byhand)" '"NTFY_SERVER":"https://n.example"' "values stay in the client config"
+expect "imported tool is healthy" 0 "$TS" doctor --no-start
+expect "import again: nothing left" 0 "$TS" import -y
+has "$out" "Nothing to import" "says so"
+expect "remove byhand" 0 "$TS" remove byhand
+
 section "uninstall / remove"
 expect "uninstall greet" 0 "$TS" uninstall greet
 [[ -z "$(claude_cfg greet)" ]] && ok "gone from claude" || bad "gone from claude"
