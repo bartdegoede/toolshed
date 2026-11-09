@@ -82,7 +82,8 @@ func (m model) handleImportKey(key string) (tea.Model, tea.Cmd) {
 		if im.Skip != "" {
 			return m, m.setFlash("Can't import "+im.Name+": "+im.Skip, false)
 		}
-		m.impSecrets = nil
+		ticked := []string{}
+		m.impSecrets = &ticked
 		var opts []huh.Option[string]
 		for _, v := range im.Vars {
 			if v.Value == "" {
@@ -91,7 +92,7 @@ func (m model) handleImportKey(key string) (tea.Model, tea.Cmd) {
 			o := huh.NewOption(fmt.Sprintf("%-22s %s", v.Key, mask(v.Value)), v.Key)
 			if v.Secret {
 				o = o.Selected(true)
-				m.impSecrets = append(m.impSecrets, v.Key)
+				*m.impSecrets = append(*m.impSecrets, v.Key)
 			}
 			opts = append(opts, o)
 		}
@@ -108,12 +109,13 @@ func (m model) handleImportKey(key string) (tea.Model, tea.Cmd) {
 				Options(opts...).
 				// huh sizes the list too small without a height, hiding the options.
 				Height(len(opts) + lipgloss.Height(lipgloss.NewStyle().Width(m.detailWidth()-4).Render(desc)) + 2).
-				Value(&m.impSecrets)
+				Value(m.impSecrets)
 		} else {
-			m.confirm = true
+			yes := true
+			m.confirm = &yes
 			field = huh.NewConfirm().Title("Import " + im.Name + "?").
 				Description("It's added to your toolshed and re-registered through it, where it is now.").
-				Affirmative("Import").Negative("Cancel").Value(&m.confirm)
+				Affirmative("Import").Negative("Cancel").Value(m.confirm)
 		}
 		return m.openForm(formImport, huh.NewForm(huh.NewGroup(field)).WithTheme(formTheme()).WithWidth(m.detailWidth()).WithShowHelp(false))
 	}
@@ -123,12 +125,12 @@ func (m model) handleImportKey(key string) (tea.Model, tea.Cmd) {
 // submitImport runs the import the form was for.
 func (m model) submitImport() (tea.Model, tea.Cmd) {
 	im := m.selectedImport()
-	if im == nil || (len(im.Vars) == 0 && !m.confirm) {
+	if im == nil || (len(im.Vars) == 0 && !m.confirmed()) {
 		m.mode = modeImport
 		return m, nil
 	}
 	ticked := map[string]bool{}
-	for _, k := range m.impSecrets {
+	for _, k := range *m.impSecrets {
 		ticked[k] = true
 	}
 	imp := *im
