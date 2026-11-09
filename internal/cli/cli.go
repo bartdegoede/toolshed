@@ -41,6 +41,7 @@ var commands []command
 func init() {
 	commands = []command{
 		{"add", "<id> [flags] [-- command args...]", "Add a tool to your toolshed", runAdd},
+		{"import", "[<name>...] [-y] [--dry-run] [--no-install]", "Adopt the servers Claude Code and Codex already have", runImport},
 		{"install", "<id>... [--project] [--client c] [--set K=V] [-y]", "Install tools into Claude Code / Codex", runInstall},
 		{"uninstall", "<id>... [--purge]", "Remove tools from Claude Code / Codex", runUninstall},
 		{"update", "[<id>...] [-y]", "Re-register installed tools with current settings", runUpdate},
