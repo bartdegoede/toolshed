@@ -49,15 +49,24 @@ Sleep 45s
 Show
 Sleep 5s
 
-# 5. ...and adds tools to itself, through toolshed
-Type `claude -p "Add the Playwright MCP server with toolshed, check that it starts, and install it for this repo. Two sentences." --allowedTools mcp__toolshed` Sleep 400ms Enter
+# 5. ...and adds tools to itself, through toolshed, pending your approval
+Type `claude -p "Add the Playwright MCP server with toolshed for this repo. Two sentences." --allowedTools mcp__toolshed` Sleep 400ms Enter
 Hide
-Sleep 45s
+Sleep 40s
 Show
 Sleep 5s
-# 6. Back in toolshed: the agent's additions, with their tools live from the server
+
+# 6. Back in toolshed: approve what the agent added, then see its tools live
 Type "toolshed" Sleep 300ms Enter
 Sleep 2s
 Down Sleep 800ms
+Type "i" Sleep 2.5s
+Left Sleep 600ms Enter Sleep 1.5s
 Type "t"
-Sleep 7s
+Sleep 10s
+
+# 7. Import a server someone set up by hand, its token still in plain text
+Type "m" Sleep 3s
+Enter Sleep 3s
+Escape Sleep 500ms Escape Sleep 500ms
+Sleep 1.5s
