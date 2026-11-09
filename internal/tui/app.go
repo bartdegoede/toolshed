@@ -76,12 +76,15 @@ type model struct {
 	formKind formKind
 	addSpec  *addSpec
 	install  *installForm
-	confirm  bool
+	// Form answers are pointers: Bubble Tea copies the model on every
+	// update, so a form bound to a field of the model would write into a
+	// copy that's already been thrown away.
+	confirm *bool
 
 	imports    []shed.Import // servers the clients have that aren't in the toolshed
 	impCursor  int
-	impSecrets []string // keys ticked as secrets in the import form
-	inImport   bool     // the import screen is open (also while its form or import runs)
+	impSecrets *[]string // keys ticked as secrets in the import form
+	inImport   bool      // the import screen is open (also while its form or import runs)
 }
 
 // ── messages ──
@@ -268,43 +271,46 @@ func (m model) handleKey(key string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if e.Pending { // agent-added: show what it runs before anything starts it
-			m.confirm = false
+			m.confirm = new(bool)
 			desc := "Your agent added it. Approving lets toolshed run:\n" + e.CommandLine()
 			if keys := e.SecretKeys(); len(keys) > 0 {
 				desc += "\nwith these secrets from your keyring: " + strings.Join(keys, ", ")
 			}
-			return m.openForm(formApprove, newConfirmForm("Approve "+e.DisplayName()+"?", desc, &m.confirm, m.detailWidth()))
+			return m.openForm(formApprove, newConfirmForm("Approve "+e.DisplayName()+"?", desc, m.confirm, m.detailWidth()))
 		}
 		if key == "t" {
 			return m, m.startProbe(e)
 		}
 		if changes := shed.Changes(e, m.inst[e.ID]); len(changes) > 0 {
-			m.confirm = false
+			m.confirm = new(bool)
 			desc := "Since you installed it, it now:\n• " + strings.Join(changes, "\n• ")
 			if keys := e.SecretKeys(); len(keys) > 0 {
 				desc += "\nand it gets " + strings.Join(keys, ", ") + " from your keyring."
 			}
-			return m.openForm(formReview, newConfirmForm(e.DisplayName()+" changed. Install the new version?", desc, &m.confirm, m.detailWidth()))
+			return m.openForm(formReview, newConfirmForm(e.DisplayName()+" changed. Install the new version?", desc, m.confirm, m.detailWidth()))
 		}
 		return m.openInstall(e)
 	case "u":
 		if e != nil && m.inst[e.ID] != nil {
-			m.confirm = false
+			m.confirm = new(bool)
 			return m.openForm(formUninstall, newConfirmForm("Uninstall "+e.DisplayName()+"?",
-				"Removes it from "+strings.Join(m.inst[e.ID].Clients(), " and ")+". Saved secrets are kept.", &m.confirm, m.detailWidth()))
+				"Removes it from "+strings.Join(m.inst[e.ID].Clients(), " and ")+". Saved secrets are kept.", m.confirm, m.detailWidth()))
 		}
 	case "d":
 		if e != nil && e.Source == registry.SourceUser {
-			m.confirm = false
+			m.confirm = new(bool)
 			desc := "Removes it from " + m.reg.UserPath
 			if m.inst[e.ID] != nil {
 				desc += " and uninstalls it"
 			}
-			return m.openForm(formDelete, newConfirmForm("Delete "+e.DisplayName()+"?", desc+".", &m.confirm, m.detailWidth()))
+			return m.openForm(formDelete, newConfirmForm("Delete "+e.DisplayName()+"?", desc+".", m.confirm, m.detailWidth()))
 		}
 	}
 	return m, nil
 }
+
+// confirmed reports whether the user said yes in the last confirm form.
+func (m model) confirmed() bool { return m.confirm != nil && *m.confirm }
 
 func (m model) openForm(kind formKind, form *huh.Form) (tea.Model, tea.Cmd) {
 	m.mode, m.formKind, m.form, m.flash = modeForm, kind, form, ""
@@ -368,12 +374,12 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 	case formInstall:
 		return m.startInstall(e)
 	case formReview:
-		if !m.confirm || e == nil {
+		if !m.confirmed() || e == nil {
 			return m, nil
 		}
 		return m.openInstall(e)
 	case formApprove:
-		if !m.confirm || e == nil {
+		if !m.confirmed() || e == nil {
 			return m, nil
 		}
 		if err := registry.ApproveUserEntry(e.ID); err != nil {
@@ -386,7 +392,7 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 		m.reg = reg
 		return m, m.setFlash("✓ Approved "+e.ID+" · press i to install, t to see its tools", true)
 	case formUninstall:
-		if !m.confirm || e == nil {
+		if !m.confirmed() || e == nil {
 			return m, nil
 		}
 		reg, inst := m.reg, m.inst[e.ID]
@@ -394,7 +400,7 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 			return doneMsg{"Uninstalled " + e.ID, shed.Uninstall(reg, e, inst, false)}
 		})
 	case formDelete:
-		if !m.confirm || e == nil {
+		if !m.confirmed() || e == nil {
 			return m, nil
 		}
 		reg, inst := m.reg, m.inst[e.ID]

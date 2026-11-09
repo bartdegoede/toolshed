@@ -219,8 +219,8 @@ func TestImportScreen(t *testing.T) {
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	mm = m.(model)
-	if mm.mode != modeForm || mm.formKind != formImport || len(mm.impSecrets) != 1 || mm.impSecrets[0] != "API_TOKEN" {
-		t.Fatalf("enter should ask which values are secrets, API_TOKEN ticked: mode %v kind %v %v", mm.mode, mm.formKind, mm.impSecrets)
+	if mm.mode != modeForm || mm.formKind != formImport || len(*mm.impSecrets) != 1 || (*mm.impSecrets)[0] != "API_TOKEN" {
+		t.Fatalf("enter should ask which values are secrets, API_TOKEN ticked: mode %v kind %v %v", mm.mode, mm.formKind, *mm.impSecrets)
 	}
 	out = ansi.ReplaceAllString(mm.View().Content, "")
 	if !strings.Contains(out, "Which of these are secrets?") || !strings.Contains(out, "[•] API_TOKEN") || !strings.Contains(out, "[ ] LEVEL") {
@@ -238,5 +238,68 @@ func TestImportScreen(t *testing.T) {
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if mm := m.(model); mm.mode != modeBrowse || mm.inImport {
 		t.Fatal("esc leaves the import screen")
+	}
+}
+
+// press sends keys the way Bubble Tea does: the model is copied on every
+// update, and the commands each update returns run before the next key.
+func press(t *testing.T, m tea.Model, keys ...tea.KeyPressMsg) tea.Model {
+	t.Helper()
+	for _, k := range keys {
+		var cmd tea.Cmd
+		m, cmd = m.Update(k)
+		for i := 0; i < 5 && cmd != nil; i++ {
+			msg := cmd()
+			if _, batch := msg.(tea.BatchMsg); batch || msg == nil {
+				break
+			}
+			m, cmd = m.Update(msg)
+		}
+	}
+	return m
+}
+
+// Answers given in a form must reach the code that acts on them, even
+// though the model is copied on every update.
+func TestConfirmFormAnswersArrive(t *testing.T) {
+	t.Setenv("TOOLSHED_HOME", t.TempDir())
+	t.Setenv("TOOLSHED_REGISTRY", "")
+	if err := registry.AddUserEntry(registry.Entry{ID: "agentic", Command: "sh", Pending: true}); err != nil {
+		t.Fatal(err)
+	}
+	reg, _ := registry.Load()
+	var m tea.Model = newModel()
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+	m, _ = m.Update(loadedMsg{reg: reg, inst: map[string]*clients.Installation{}, avail: []string{"claude"}})
+
+	// "No" is the default: enter alone must not approve.
+	m = press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if r, _ := registry.Load(); !r.Get("agentic").Pending {
+		t.Fatal("enter on the default No approved the tool")
+	}
+	// Left moves to Yes, enter confirms.
+	m = press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"}, tea.KeyPressMsg{Code: tea.KeyLeft}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if r, _ := registry.Load(); r.Get("agentic").Pending {
+		t.Fatal("answering Yes didn't approve the tool")
+	}
+	_ = m
+}
+
+func TestImportFormTicksArrive(t *testing.T) {
+	reg := &registry.Registry{}
+	inst := map[string]*clients.Installation{
+		"byhand": {ClaudeScope: "user", Config: clients.Config{Type: "stdio", Command: "srv",
+			Env: map[string]string{"API_TOKEN": "sk-live-abcdefghijkl", "LEVEL": "debug"}}},
+	}
+	var m tea.Model = newModel()
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m, _ = m.Update(loadedMsg{reg: reg, inst: inst, avail: []string{"claude"}})
+	// Open the import form; API_TOKEN (the first value) is ticked by its name.
+	m = press(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	// Untick API_TOKEN, tick LEVEL.
+	m = press(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: tea.KeyDown}, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+	got := *m.(model).impSecrets
+	if len(got) != 1 || got[0] != "LEVEL" {
+		t.Fatalf("the form's ticks didn't arrive: %v", got)
 	}
 }
