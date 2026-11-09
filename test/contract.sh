@@ -15,7 +15,7 @@ check() { # check <desc> <jq filter over $json> (must print true)
     [[ "$(jq -r "$2" <<<"$json" 2>/dev/null)" == "true" ]] && ok "$1" || bad "$1" "$json"
 }
 section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
-cget() { json="$(codex mcp get "$1" --json 2>&1)"; }
+cget() { json="$(codex mcp get "$1" --json 2>/dev/null)"; } # stderr: warnings, not JSON
 printf 'claude %s, %s\n' "$(claude --version)" "$(codex --version)"
 
 section "stdio tool"
@@ -64,7 +64,7 @@ section "project scope"
 repo="$(mktemp -d)"; git -C "$repo" init -q
 (cd "$repo" && "$TS" install notes -y --project >/dev/null 2>&1) || bad "install --project"
 printf '\n[projects."%s"]\ntrust_level = "trusted"\n' "$(cd "$repo" && pwd -P)" >> "$CODEX_HOME/config.toml"
-json="$(cd "$repo" && codex mcp list --json 2>&1)"
+json="$(cd "$repo" && codex mcp list --json 2>/dev/null)"
 check "codex sees the project's server once trusted" '[.[] | select(.name == "notes")] | length == 1'
 json="$(jq -c '.mcpServers.notes' "$repo/.mcp.json")"
 check "claude's .mcp.json has it" '.command == "sh"'
