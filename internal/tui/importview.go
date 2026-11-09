@@ -102,7 +102,7 @@ func (m model) handleImportKey(key string) (tea.Model, tea.Cmd) {
 		}
 		var field huh.Field
 		if len(opts) > 0 {
-			desc := "Ticked by their names; check them. " + where + "\nspace: tick · enter: import"
+			desc := "Ticked where they look like secrets; check them. " + where + "\nspace: tick · enter: import"
 			field = huh.NewMultiSelect[string]().
 				Title("Which of these are secrets?").
 				Description(desc).
