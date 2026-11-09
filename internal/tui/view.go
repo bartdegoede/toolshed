@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -54,10 +55,17 @@ func (m model) View() tea.View {
 		body = "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(errorStyle.Render("✗ ")+textStyle.Render(m.fatal)+"\n\n"+dimStyle.Render("Press any key to exit."))
 	default:
 		sep := faintStyle.Padding(0, 2).Render(strings.Repeat("│\n", m.bodyHeight()-1) + "│")
+		list, detail := m.renderList, m.renderDetail
+		if m.inImport {
+			list, detail = m.renderImportList, m.renderImportDetail
+			if m.mode == modeForm && m.form != nil {
+				detail = func() string { return "\n" + m.form.View() }
+			}
+		}
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			lipgloss.NewStyle().Width(m.listWidth()).Render(m.renderList()),
+			lipgloss.NewStyle().Width(m.listWidth()).Render(list()),
 			sep,
-			lipgloss.NewStyle().Width(m.detailWidth()).Render(m.renderDetail()),
+			lipgloss.NewStyle().Width(m.detailWidth()).Render(detail()),
 		)
 	}
 	body = lipgloss.NewStyle().Height(m.bodyHeight()).MaxHeight(m.bodyHeight()).PaddingLeft(1).Render(body)
@@ -182,7 +190,11 @@ func (m model) renderDetail() string {
 	}
 	e := m.selected()
 	if e == nil {
-		return "\n" + dimStyle.Render("No tools yet. Press ") + keyStyle.Render("a") + dimStyle.Render(" to add one.")
+		msg := "\n" + dimStyle.Render("No tools yet. Press ") + keyStyle.Render("a") + dimStyle.Render(" to add one.")
+		if n := m.importable(); n > 0 {
+			msg += "\n\n" + dimStyle.Render(fmt.Sprintf("Claude Code and Codex already have %d server%s that toolshed doesn't manage. Press ", n, plural(n))) + keyStyle.Render("m") + dimStyle.Render(" to import them.")
+		}
+		return msg
 	}
 	w := m.detailWidth()
 	var b strings.Builder
@@ -203,6 +215,9 @@ func (m model) renderDetail() string {
 		b.WriteString("  " + codeStyle.Render("⇄ "+e.URL) + "\n")
 		if e.HeaderCmd != "" {
 			b.WriteString("  " + dimStyle.Render("auth headers from: ") + codeStyle.Render(truncate(e.HeaderCmd, w-22)) + "\n")
+		}
+		for _, name := range sortedKeys(e.Headers) {
+			b.WriteString("  " + dimStyle.Render(name+": ") + codeStyle.Render(truncate(e.Headers[name], w-len(name)-6)) + "\n")
 		}
 	} else {
 		b.WriteString("  " + codeStyle.Render(truncate("$ "+strings.Join(append([]string{e.Command}, e.Args...), " "), w-2)) + "\n")
@@ -240,7 +255,7 @@ func (m model) renderDetail() string {
 		case inst != nil && c == clients.Claude && inst.ClaudeScope != "":
 			status = successStyle.Render("installed") + faintStyle.Render(" ("+inst.ClaudeScope+")")
 		case inst != nil && c == clients.Codex && inst.Codex:
-			status = successStyle.Render("installed")
+			status = successStyle.Render("installed") + faintStyle.Render(" ("+inst.CodexScope+")")
 		case !contains(m.avail, c):
 			status = faintStyle.Render("not on this machine")
 		case !e.SupportsClient(c):
@@ -307,8 +322,16 @@ func (m model) renderFooter() string {
 		text = style.Render(truncate(m.flash, m.width-4))
 	case m.mode == modeBusy:
 		text = accentStyle.Render(spinnerFrames[m.spinner]) + " " + dimStyle.Render(m.busy+"…")
+	case m.mode == modeForm && m.formKind == formImport:
+		text = keyHelp("space", "tick", "enter", "import", "esc", "cancel")
 	case m.mode == modeForm:
 		text = keyHelp("enter", "next", "shift+tab", "back", "esc", "cancel")
+	case m.mode == modeImport:
+		keys := []string{"↑↓", "move"}
+		if im := m.selectedImport(); im != nil && im.Skip == "" {
+			keys = append(keys, "enter", "import")
+		}
+		text = keyHelp(append(keys, "esc", "back")...)
 	case m.mode == modeBrowse:
 		keys := []string{"↑↓", "move", "a", "add"}
 		if e := m.selected(); e != nil && e.Pending {
@@ -324,9 +347,28 @@ func (m model) renderFooter() string {
 				keys = append(keys, "d", "delete")
 			}
 		}
+		if n := m.importable(); n > 0 {
+			keys = append(keys, "m", fmt.Sprintf("import %d", n))
+		}
 		text = keyHelp(append(keys, "q", "quit")...)
 	}
 	return faintStyle.Render(strings.Repeat("─", max(m.width, 1))) + "\n " + text
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func keyHelp(pairs ...string) string {

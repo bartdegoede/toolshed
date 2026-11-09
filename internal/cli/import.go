@@ -100,10 +100,6 @@ func importOne(reg *registry.Registry, im *shed.Import, interactive, dry, noInst
 		fmt.Printf("%s %s %s\n", dim("·"), bold(im.Name), dim("skipped: "+im.Skip))
 		return false, nil
 	}
-	if reg.Get(im.Entry.ID) != nil {
-		fmt.Printf("%s %s %s\n", dim("·"), bold(im.Name), dim("skipped: it would become "+im.Entry.ID+", which is already in your toolshed"))
-		return false, nil
-	}
 	fmt.Printf("%s  %s\n  %s\n", bold(im.Name), dim(where), im.Entry.CommandLine())
 	for _, n := range im.Notes {
 		fmt.Printf("  %s\n", dim(n))
@@ -127,49 +123,24 @@ func importOne(reg *registry.Registry, im *shed.Import, interactive, dry, noInst
 			fmt.Printf("%s  → plain value\n", label)
 		}
 	}
-	e := im.Build()
 	if dry {
 		return false, nil
 	}
-
-	vals, missing := shed.Resolve(&e, nil, im.Values)
-	install := !noInstall
-	if len(missing) > 0 {
-		fmt.Printf("  %s %s isn't in your keyring anymore, so it's only added to your registry\n", amber("!"), inputKeys(missing))
-		install = false
-	} else if err := shed.CheckCommand(&e); err != nil && install {
-		fmt.Printf("  %s %s isn't on PATH, so it's only added to your registry\n", amber("!"), e.Command)
-		install = false
+	res, err := im.Apply(!noInstall)
+	for _, n := range res.Notes {
+		fmt.Printf("  %s %s\n", amber("!"), n)
 	}
-	if install {
-		opts := shed.KeepScopes(im.Inst)
-		opts.Clients = im.Clients
-		res, err := shed.Install(&e, vals, opts)
-		if err != nil {
-			return false, err
-		}
-		for _, n := range res.Notes {
-			fmt.Printf("  %s %s\n", amber("!"), n)
-		}
-		if im.Rename {
-			for _, c := range im.Clients {
-				if err := clients.Unregister(c, im.Name, im.Inst.Scope(c)); err != nil {
-					fmt.Printf("  %s couldn't remove the old %s from %s: %v\n", amber("!"), im.Name, c, err)
-				}
-			}
-		}
-	}
-	if err := registry.AddUserEntry(e); err != nil {
+	if err != nil {
 		return false, err
 	}
 	done := "added to your registry"
-	if install {
+	if res.Installed {
 		done = "re-registered through toolshed"
-		if keys := e.SecretKeys(); len(keys) > 0 && secrets.Available() {
-			done += "; " + strings.Join(keys, ", ") + " moved to your keyring"
+		if len(res.Moved) > 0 {
+			done += "; " + strings.Join(res.Moved, ", ") + " moved to your keyring"
 		}
 	}
-	fmt.Printf("  %s %s %s\n", green("✓"), bold(e.ID), done)
+	fmt.Printf("  %s %s %s\n", green("✓"), bold(res.Entry.ID), done)
 	return true, nil
 }
 

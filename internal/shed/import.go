@@ -9,6 +9,7 @@ import (
 
 	"github.com/bartdegoede/toolshed/internal/clients"
 	"github.com/bartdegoede/toolshed/internal/registry"
+	"github.com/bartdegoede/toolshed/internal/secrets"
 )
 
 // Import is a server registered in Claude Code or Codex that toolshed doesn't
@@ -38,9 +39,14 @@ type ImportVar struct {
 func Imports(reg *registry.Registry, installed map[string]*clients.Installation) []Import {
 	var out []Import
 	for name, inst := range installed {
-		if reg.Get(name) == nil {
-			out = append(out, importOne(name, inst))
+		if reg.Get(name) != nil {
+			continue
 		}
+		im := importOne(name, inst)
+		if im.Skip == "" && reg.Get(im.Entry.ID) != nil {
+			im.Skip = "it would become " + im.Entry.ID + ", which is already in your toolshed"
+		}
+		out = append(out, im)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
@@ -195,4 +201,59 @@ func sameServer(a, b clients.Config) bool {
 
 func sanitize(name string) string {
 	return strings.ReplaceAll(strings.ToLower(name), "_", "-")
+}
+
+// ImportResult is what Apply did.
+type ImportResult struct {
+	Entry     registry.Entry
+	Installed bool     // re-registered through toolshed (false: only added to the registry)
+	Moved     []string // secrets now in the keyring
+	Notes     []string // why it wasn't installed, client notes, …
+}
+
+// Apply imports im as the user sorted its vars: it re-installs the server
+// where it is (unless install is false, its command is missing, or a secret
+// is gone from the keyring), removes an old name, and adds it to the
+// registry. The CLI and the TUI both use it.
+func (im *Import) Apply(install bool) (ImportResult, error) {
+	e := im.Build()
+	res := ImportResult{Entry: e}
+	vals, missing := Resolve(&e, nil, im.Values)
+	switch {
+	case !install:
+	case len(missing) > 0:
+		keys := make([]string, len(missing))
+		for i, in := range missing {
+			keys[i] = in.Key
+		}
+		res.Notes = append(res.Notes, strings.Join(keys, ", ")+" isn't in your keyring anymore, so it's only added to your registry")
+		install = false
+	case CheckCommand(&e) != nil:
+		res.Notes = append(res.Notes, e.Command+" isn't on PATH, so it's only added to your registry")
+		install = false
+	}
+	if install {
+		opts := KeepScopes(im.Inst)
+		opts.Clients = im.Clients
+		r, err := Install(&e, vals, opts)
+		if err != nil {
+			return res, err
+		}
+		res.Installed = true
+		res.Notes = append(res.Notes, r.Notes...)
+		if im.Rename {
+			for _, c := range im.Clients {
+				if err := clients.Unregister(c, im.Name, im.Inst.Scope(c)); err != nil {
+					res.Notes = append(res.Notes, fmt.Sprintf("couldn't remove the old %s from %s: %v", im.Name, c, err))
+				}
+			}
+		}
+		if secrets.Available() {
+			res.Moved = e.SecretKeys()
+		}
+	}
+	if err := registry.AddUserEntry(e); err != nil {
+		return res, err
+	}
+	return res, nil
 }

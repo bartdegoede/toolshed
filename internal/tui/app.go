@@ -34,6 +34,7 @@ const (
 	modeBrowse
 	modeForm
 	modeBusy
+	modeImport // the import screen (see importview.go)
 )
 
 type formKind int
@@ -45,6 +46,7 @@ const (
 	formDelete
 	formApprove
 	formReview // an installed tool changed in the registry: accept before re-installing
+	formImport // which values of a server being imported are secrets
 )
 
 type probeState struct {
@@ -75,6 +77,11 @@ type model struct {
 	addSpec  *addSpec
 	install  *installForm
 	confirm  bool
+
+	imports    []shed.Import // servers the clients have that aren't in the toolshed
+	impCursor  int
+	impSecrets []string // keys ticked as secrets in the import form
+	inImport   bool     // the import screen is open (also while its form or import runs)
 }
 
 // ── messages ──
@@ -174,11 +181,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.mode, m.reg, m.inst, m.avail = modeBrowse, msg.reg, msg.inst, msg.avail
 			m.cursor = max(0, min(m.cursor, len(m.reg.Entries)-1))
+			m.refreshImports()
+			if m.inImport {
+				m.mode = modeImport
+				if len(m.imports) == 0 {
+					m.mode, m.inImport = modeBrowse, false
+				}
+			}
 		}
 		return m, nil
 	case detectedMsg:
 		m.inst = msg.inst
+		m.refreshImports()
 		return m, nil
+	case importedMsg:
+		if msg.err != nil {
+			m.mode = modeImport
+			return m, m.setFlash("✗ "+oneLine(msg.err.Error()), false)
+		}
+		return m, tea.Batch(load, m.setFlash("✓ "+msg.text, true))
 	case doneMsg:
 		m.mode = modeBrowse
 		if msg.err != nil {
@@ -212,6 +233,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k, ok := msg.(tea.KeyPressMsg); ok {
 			return m.handleKey(k.String())
 		}
+	case modeImport:
+		if k, ok := msg.(tea.KeyPressMsg); ok {
+			return m.handleImportKey(k.String())
+		}
 	}
 	return m, nil
 }
@@ -233,6 +258,8 @@ func (m model) handleKey(key string) (tea.Model, tea.Cmd) {
 		m.cursor = 0
 	case "end", "G":
 		m.cursor = len(m.reg.Entries) - 1
+	case "m":
+		return m.openImports()
 	case "a":
 		m.addSpec = &addSpec{}
 		return m.openForm(formAdd, newAddForm(m.addSpec, m.reg, m.detailWidth()))
@@ -285,8 +312,12 @@ func (m model) openForm(kind formKind, form *huh.Form) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
+	back := modeBrowse
+	if m.inImport {
+		back = modeImport
+	}
 	if k, ok := msg.(tea.KeyPressMsg); ok && (k.String() == "esc" || k.String() == "ctrl+c") {
-		m.mode, m.form = modeBrowse, nil
+		m.mode, m.form = back, nil
 		return m, nil
 	}
 	fm, cmd := m.form.Update(msg)
@@ -295,10 +326,10 @@ func (m model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch m.form.State {
 	case huh.StateAborted:
-		m.mode, m.form = modeBrowse, nil
+		m.mode, m.form = back, nil
 		return m, nil
 	case huh.StateCompleted:
-		m.mode, m.form = modeBrowse, nil
+		m.mode, m.form = back, nil
 		return m.submitForm()
 	}
 	return m, cmd
@@ -307,6 +338,8 @@ func (m model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) submitForm() (tea.Model, tea.Cmd) {
 	e := m.selected()
 	switch m.formKind {
+	case formImport:
+		return m.submitImport()
 	case formAdd:
 		entry, err := m.addSpec.toEntry()
 		pinned := ""

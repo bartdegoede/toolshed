@@ -176,7 +176,9 @@ the current repository's local and `.mcp.json` servers) and in Codex's
 
 `-y` imports everything with the guessed secrets, `--dry-run` only shows what
 it would do, and `--no-install` only adds to the registry. `toolshed import
-<name>` imports one server.
+<name>` imports one server. In the TUI, `m` opens the same list: pick a
+server, tick which values are secrets (the guesses are ticked already), and
+press enter.
 
 Names that aren't valid ids (`My_Server`) are imported as one (`my-server`),
 and the old name is removed. A server that Claude Code and Codex run
