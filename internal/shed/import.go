@@ -3,6 +3,7 @@ package shed
 import (
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -127,7 +128,7 @@ func importOne(name string, inst *clients.Installation) Import {
 		}
 		for _, k := range sortedKeys(cfg.Env) {
 			v := cfg.Env[k]
-			im.Vars = append(im.Vars, ImportVar{Key: k, Value: v, Secret: v != "" && SecretName(k)})
+			im.Vars = append(im.Vars, ImportVar{Key: k, Value: v, Secret: v != "" && (SecretName(k) || SecretValue(v))})
 		}
 	}
 	im.Entry = e
@@ -175,6 +176,17 @@ func headerKey(name string) string {
 		k = "H_" + k
 	}
 	return k
+}
+
+// SecretValue guesses from a value whether it's a secret whatever its name:
+// a URL with a password in it (postgresql://app:hunter2@db/app).
+func SecretValue(v string) bool {
+	u, err := url.Parse(strings.TrimSpace(v))
+	if err != nil || u.User == nil {
+		return false
+	}
+	_, hasPassword := u.User.Password()
+	return hasPassword
 }
 
 // SecretName guesses from an env var's name whether it holds a secret.

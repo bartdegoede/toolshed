@@ -14,9 +14,10 @@ finds every server Claude Code and Codex have that isn't in your toolshed
 yet: your user-wide ones, and the current repository's. For each one it:
 
 1. shows the command (or URL) and asks whether to import it;
-2. lists its values and asks which are secrets, starting from a guess based
-   on the name (`*TOKEN*`, `*SECRET*`, `*PASSWORD*`, `*API_KEY*`, `*_KEY`,
-   `Authorization`, …);
+2. lists its values and asks which are secrets, starting from a guess: by
+   name (`*TOKEN*`, `*SECRET*`, `*PASSWORD*`, `*API_KEY*`, `*_KEY`,
+   `Authorization`, …), and any URL with a password in it
+   (`postgresql://app:…@db/app`);
 3. adds it to your registry, with every value as an input. The registry
    never gets the values, so it stays safe to share;
 4. installs it again where it was: secrets go to the keyring and the server
