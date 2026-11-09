@@ -158,6 +158,11 @@ func runEdit(args []string) error {
 }
 
 func runValidate(args []string) error {
+	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
+	args, err := parse(fs, args)
+	if err != nil {
+		return err
+	}
 	path := registry.UserPath()
 	if len(args) > 1 {
 		return usagef("validate takes at most one file")

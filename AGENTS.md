@@ -1,8 +1,9 @@
 # toolshed
 
 Go CLI + TUI that adds MCP servers to Claude Code and Codex from a YAML
-registry, with secrets in the OS keyring. User docs: README.md,
-docs/registry.md. Layout and rules: CONTRIBUTING.md.
+registry, with secrets in the OS keyring. User docs: README.md and docs/
+(also published at https://toolshed.run, see "Docs" below). Layout and rules:
+CONTRIBUTING.md.
 
 ```bash
 just build      # ./toolshed
@@ -58,3 +59,12 @@ gh api repos/bartdegoede/homebrew-tap/contents/Casks/toolshed.rb -q .path   # ta
   Don't raise it, or `examples/ping-mcp/go.mod`, without a reason.
 - A failed release: fix on `main`, then tag the next patch version.
 - Re-record `docs/demo.gif` (`just demo`) when the TUI changes visibly.
+
+## Docs
+
+docs/*.md are the user docs, and the source of https://toolshed.run (the
+bartdegoede/toolshed.github.io repo pulls them in at build time, pinned to
+the latest release). Each page starts with `# Title` and a
+`<!-- summary: … -->` line, which the site shows in its page list. Link
+between pages with relative `.md` links. A behaviour change isn't done until
+the page that describes it is updated, for Claude Code and Codex alike.

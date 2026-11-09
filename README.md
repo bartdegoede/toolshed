@@ -39,21 +39,11 @@ toolshed does that part for you:
 brew install bartdegoede/tap/toolshed
 ```
 
-or with Go (1.26 or newer):
-
-```sh
-go install github.com/bartdegoede/toolshed/cmd/toolshed@latest
-```
-
-Prebuilt binaries for macOS and Linux are on the
-[releases page](https://github.com/bartdegoede/toolshed/releases).
-
-You need [Claude Code](https://claude.com/claude-code) and/or
+or `go install github.com/bartdegoede/toolshed/cmd/toolshed@latest` (Go
+1.26 or newer). Prebuilt binaries are on the
+[releases page](https://github.com/bartdegoede/toolshed/releases). You need
+[Claude Code](https://claude.com/claude-code) and/or
 [Codex](https://github.com/openai/codex) on your PATH. macOS and Linux.
-
-Homebrew installs shell completions for commands and tool ids. Otherwise,
-load them with `toolshed completion bash|zsh|fish`, e.g.
-`source <(toolshed completion zsh)` in your `~/.zshrc`.
 
 ## Quickstart
 
@@ -62,7 +52,8 @@ toolshed
 ```
 
 That's the whole interface: browse the examples, press `a` to add your own,
-`i` to install, `t` to see a server's tools live.
+`i` to install, `t` to see a server's tools live, `m` to import the servers
+you already have.
 
 Prefer the command line?
 
@@ -78,98 +69,21 @@ toolshed install memory
 #  ✓ memory → claude, codex
 ```
 
-More ways to add tools:
+## Documentation
 
-```sh
-toolshed add fetch  --uvx mcp-server-fetch                     # Python package
-toolshed add docs   --url https://mcp.context7.com/mcp         # remote server
-toolshed add jira   --secret JIRA_TOKEN -- jira-mcp --site acme  # any command, with a secret
-toolshed add acme   --url https://mcp.acme.com/mcp \
-  --header 'Authorization=Bearer ${ACME_TOKEN}' --secret ACME_TOKEN  # remote server with a token
-```
+The full docs are at **[toolshed.run](https://toolshed.run)**, and in
+[`docs/`](docs):
 
-npm and Python packages are pinned to their current release when you add
-them, so a server only changes when you say so: `toolshed upgrade` moves them
-to the newest release (`--dry-run` shows what it would do first).
-
-## Already have servers set up?
-
-```sh
-toolshed import
-```
-
-finds the servers Claude Code and Codex already have, adds them to your
-toolshed, and moves their tokens out of `~/.claude.json` and Codex's config
-into your keychain. It guesses which env vars are secrets from their names
-(`*TOKEN*`, `*API_KEY*`, `*PASSWORD*`, …) and asks you to confirm each one.
-`--dry-run` shows what it would do first. In the TUI, press `m` to see them
-and import them one at a time.
-
-![The import screen: servers Claude Code and Codex have that toolshed doesn't manage, with their values masked](docs/import.png)
-
-## Let your agent manage its tools
-
-```sh
-toolshed install toolshed     # registers `toolshed mcp` with Claude Code / Codex
-```
-
-Then just ask:
-
-> Add the Playwright MCP server, check it starts, and install it for this repo.
-
-The agent gets `list_servers`, `inspect_server`, `add_server`,
-`install_server` and `uninstall_server`. New servers load the next time the
-client reconnects (`/mcp` in Claude Code).
-
-A server the agent adds is **pending** until you approve it: toolshed won't
-start or install it before you've seen the command it runs. Approve it with
-`toolshed approve <id>`, or select it in `toolshed` and press `i`. The agent
-also can't replace a tool you already have, so it can never point an existing
-tool (and its secrets) at a different command.
-
-## Commands
-
-| | |
-| --- | --- |
-| `toolshed` | Interactive TUI |
-| `toolshed add <id> …` | Add a tool (`--npx`, `--uvx`, `--url`, or `-- <command>`) |
-| `toolshed import [<name>…]` | Adopt servers Claude Code and Codex already have, moving their tokens to the keychain |
-| `toolshed install <id>…` | Install into Claude Code and Codex (`--project` for this repo only) |
-| `toolshed uninstall <id>…` | Remove from the clients (`--purge` also deletes secrets) |
-| `toolshed tools <id>` | Start a server and list its tools |
-| `toolshed list` | Everything, and where it's installed (`--json`) |
-| `toolshed doctor` | Check every installed tool: does it start, are its secrets there, has it changed (`--no-start`, `--json`) |
-| `toolshed update` | Re-register installed tools after editing the registry (asks first if what a tool runs changed) |
-| `toolshed upgrade [<id>…]` | Move npx/uvx tools to the newest release of their package |
-| `toolshed approve <id>` | Review and allow a tool your agent added |
-| `toolshed secret set <id> [KEY]` | Replace a secret, e.g. a rotated token (typed at a hidden prompt, or piped in) |
-| `toolshed remove <id>` | Uninstall and delete from your toolshed |
-| `toolshed edit` | Open your registry in `$EDITOR` |
-| `toolshed mcp` | Serve toolshed to your agent over MCP |
-
-## Your registry
-
-`toolshed add` writes to `~/.toolshed/registry.yaml`:
-
-```yaml
-tools:
-  - id: jira
-    command: jira-mcp
-    args: [--site, acme]
-    inputs:
-      - key: JIRA_TOKEN
-        secret: true
-```
-
-See [docs/registry.md](docs/registry.md) for every option, team sharing, and
-exactly how secrets are handled.
-
-## Build your own server
-
-[`examples/ping-mcp`](examples/ping-mcp) is a complete, genuinely useful MCP
-server in about 110 lines of Go: it sends push notifications to your phone
-("run the migration and ping me when it's done"). Copy it, add your tools,
-then `toolshed add mine -- my-server`.
+- [Install](docs/install.md) and [Getting started](docs/getting-started.md)
+- [Commands](docs/commands.md): every command and its flags
+- [The registry](docs/registry.md): your tools in one YAML file, and sharing it with a team
+- [Secrets](docs/secrets.md): tokens in your keychain, for local and remote servers
+- [Import](docs/import.md): adopt the servers you already set up by hand
+- [Your agent](docs/agents.md): let Claude Code or Codex add servers themselves
+- [Updates and versions](docs/updates.md): pinned packages, upgrades, registry changes
+- [Doctor](docs/doctor.md): check that every installed tool works
+- [Claude Code and Codex](docs/clients.md): where tools are installed, and how
+- [Build your own server](docs/build-a-server.md)
 
 ## Development
 
