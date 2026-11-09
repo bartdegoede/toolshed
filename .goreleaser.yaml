@@ -39,7 +39,7 @@ homebrew_casks:
       owner: bartdegoede
       name: homebrew-tap
       token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
-    homepage: https://github.com/bartdegoede/toolshed
+    homepage: https://toolshed.run
     completions:
       bash: completions/toolshed.bash
       zsh: completions/_toolshed
