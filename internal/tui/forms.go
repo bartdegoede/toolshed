@@ -24,6 +24,7 @@ const (
 // addSpec is what the add form collects.
 type addSpec struct {
 	Kind, Source, ID, Name, Secrets, Description string
+	Token                                        bool // remote: send a bearer token from the keyring
 }
 
 // sourceTitle is the prompt for the kind-specific "what to run" field.
@@ -42,7 +43,21 @@ func sourceTitle(kind string) (title, placeholder string) {
 // toEntry turns the add form's answers into a registry entry.
 func (s addSpec) toEntry() (registry.Entry, error) {
 	secrets := strings.FieldsFunc(s.Secrets, func(r rune) bool { return r == ',' || r == ' ' })
-	return registry.Spec{Kind: s.Kind, Source: s.Source, ID: s.ID, Name: s.Name, Description: s.Description, Secrets: secrets}.Entry()
+	spec := registry.Spec{Kind: s.Kind, Source: s.Source, ID: s.ID, Name: s.Name, Description: s.Description, Secrets: secrets}
+	if s.Kind != kindURL {
+		return spec.Entry()
+	}
+	spec.Secrets = nil
+	if s.Token {
+		id := strings.TrimSpace(s.ID)
+		if id == "" {
+			id = registry.SuggestID(s.Kind, s.Source)
+		}
+		key := strings.ToUpper(strings.ReplaceAll(id, "-", "_")) + "_TOKEN"
+		spec.Secrets = []string{key}
+		spec.Headers = map[string]string{"Authorization": "Bearer ${" + key + "}"}
+	}
+	return spec.Entry()
 }
 
 // newAddForm builds the "add a tool" wizard, writing answers into spec.
@@ -96,6 +111,13 @@ func newAddForm(spec *addSpec, reg *registry.Registry, width int) *huh.Form {
 			huh.NewInput().Title("Display name").Description("Optional.").Value(&spec.Name),
 			huh.NewInput().Title("Description").Description("Optional, one line.").Value(&spec.Description),
 		),
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Does it need an API token?").
+				Description("It's sent as \"Authorization: Bearer <token>\". You'll be asked for it at install;\nit's stored in your OS keyring, never in a config file. Other headers: toolshed add --header.").
+				Affirmative("Yes").Negative("No").
+				Value(&spec.Token),
+		).WithHideFunc(func() bool { return spec.Kind != kindURL }),
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Secret environment variables").

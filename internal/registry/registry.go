@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -30,6 +32,7 @@ type Entry struct {
 	Args        []string          `yaml:"args,omitempty"`           // stdio server: arguments
 	URL         string            `yaml:"url,omitempty"`            // remote server (streamable HTTP)
 	HeaderCmd   string            `yaml:"headers_helper,omitempty"` // remote: command printing JSON headers
+	Headers     map[string]string `yaml:"headers,omitempty"`        // remote: HTTP headers; ${KEY} is replaced by input KEY
 	Env         map[string]string `yaml:"env,omitempty"`            // fixed environment variables
 	Inputs      []Input           `yaml:"inputs,omitempty"`         // values prompted for at install
 	Clients     []string          `yaml:"clients,omitempty"`        // restrict to "claude" and/or "codex"
@@ -104,8 +107,16 @@ func (e *Entry) DisplayName() string {
 // showing to the user before they approve it.
 func (e *Entry) CommandLine() string {
 	if e.IsRemote() {
-		if e.HeaderCmd != "" {
+		switch {
+		case e.HeaderCmd != "":
 			return e.URL + " (headers from: " + e.HeaderCmd + ")"
+		case len(e.Headers) > 0:
+			names := make([]string, 0, len(e.Headers))
+			for k, v := range e.Headers {
+				names = append(names, k+": "+v)
+			}
+			sort.Strings(names)
+			return e.URL + " (" + strings.Join(names, ", ") + ")"
 		}
 		return e.URL
 	}
@@ -125,6 +136,40 @@ func (e *Entry) SecretKeys() []string {
 		}
 	}
 	return keys
+}
+
+// ShellQuote quotes s for a POSIX shell, leaving plain words as they are.
+func ShellQuote(s string) string { return quoteArg(s) }
+
+// placeholder matches ${KEY} in a header value.
+var placeholder = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// HeaderKeys lists the inputs a header value refers to.
+func HeaderKeys(value string) []string {
+	var keys []string
+	for _, m := range placeholder.FindAllStringSubmatch(value, -1) {
+		keys = append(keys, m[1])
+	}
+	return keys
+}
+
+// ExpandHeaders fills ${KEY} in each header from vals. missing lists keys
+// with no value; their placeholders are left empty.
+func ExpandHeaders(headers, vals map[string]string) (out map[string]string, missing []string) {
+	out = map[string]string{}
+	seen := map[string]bool{}
+	for name, v := range headers {
+		out[name] = placeholder.ReplaceAllStringFunc(v, func(m string) string {
+			k := placeholder.FindStringSubmatch(m)[1]
+			if vals[k] == "" && !seen[k] {
+				seen[k] = true
+				missing = append(missing, k)
+			}
+			return vals[k]
+		})
+	}
+	sort.Strings(missing)
+	return out, missing
 }
 
 func quoteArg(s string) string {
@@ -267,11 +312,38 @@ func ValidateEntry(e *Entry) error {
 	if len(e.Args) > 0 && e.Command == "" {
 		errs = append(errs, fmt.Errorf("%s: args requires command", where))
 	}
-	if e.URL != "" && (len(e.Inputs) > 0 || len(e.Env) > 0) {
-		errs = append(errs, fmt.Errorf("%s: env and inputs only apply to command servers (remote servers get no environment)", where))
+	if e.URL != "" && len(e.Env) > 0 {
+		errs = append(errs, fmt.Errorf("%s: env only applies to command servers (remote servers get no environment; use headers)", where))
 	}
 	if e.HeaderCmd != "" && e.URL == "" {
 		errs = append(errs, fmt.Errorf("%s: headers_helper only applies to url servers", where))
+	}
+	if len(e.Headers) > 0 && e.URL == "" {
+		errs = append(errs, fmt.Errorf("%s: headers only apply to url servers (command servers get env)", where))
+	}
+	if len(e.Headers) > 0 && e.HeaderCmd != "" {
+		errs = append(errs, fmt.Errorf("%s: set headers or headers_helper, not both", where))
+	}
+	if e.URL != "" {
+		used := map[string]bool{}
+		names := make([]string, 0, len(e.Headers))
+		for name := range e.Headers {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			for _, k := range HeaderKeys(e.Headers[name]) {
+				used[k] = true
+				if !hasInputKey(e, k) {
+					errs = append(errs, fmt.Errorf("%s: header %s uses ${%s}, which isn't one of its inputs", where, name, k))
+				}
+			}
+		}
+		for _, in := range e.Inputs {
+			if !used[in.Key] {
+				errs = append(errs, fmt.Errorf("%s: input %s isn't used: remote servers get inputs only through ${%s} in headers", where, in.Key, in.Key))
+			}
+		}
 	}
 	for _, c := range e.Clients {
 		if c != "claude" && c != "codex" {
@@ -308,6 +380,15 @@ func IsValidID(s string) bool {
 		}
 	}
 	return true
+}
+
+func hasInputKey(e *Entry, key string) bool {
+	for _, in := range e.Inputs {
+		if in.Key == key {
+			return true
+		}
+	}
+	return false
 }
 
 func isEnvKey(s string) bool {

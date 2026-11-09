@@ -30,12 +30,13 @@ type idArgs struct {
 }
 
 type addArgs struct {
-	ID          string   `json:"id,omitempty" jsonschema:"short lowercase id; derived from source when omitted"`
-	Kind        string   `json:"kind" jsonschema:"npx (npm package), uvx (Python package), command (executable on PATH) or url (remote server)"`
-	Source      string   `json:"source" jsonschema:"the package name, command line, or URL (extra arguments may follow packages and commands)"`
-	Name        string   `json:"name,omitempty" jsonschema:"display name"`
-	Description string   `json:"description,omitempty" jsonschema:"one-line description"`
-	SecretEnv   []string `json:"secret_env,omitempty" jsonschema:"env var names the server needs as secrets (e.g. API tokens); the user enters the values themselves"`
+	ID          string            `json:"id,omitempty" jsonschema:"short lowercase id; derived from source when omitted"`
+	Kind        string            `json:"kind" jsonschema:"npx (npm package), uvx (Python package), command (executable on PATH) or url (remote server)"`
+	Source      string            `json:"source" jsonschema:"the package name, command line, or URL (extra arguments may follow packages and commands)"`
+	Name        string            `json:"name,omitempty" jsonschema:"display name"`
+	Description string            `json:"description,omitempty" jsonschema:"one-line description"`
+	SecretEnv   []string          `json:"secret_env,omitempty" jsonschema:"names of the secrets the server needs (e.g. API_TOKEN); the user enters the values themselves. Command servers get them as env vars; remote servers only through headers"`
+	Headers     map[string]string `json:"headers,omitempty" jsonschema:"remote servers only: HTTP headers to send, e.g. {\"Authorization\": \"Bearer ${API_TOKEN}\"}. Put secrets in as ${NAME} with NAME listed in secret_env, never the value itself"`
 }
 
 type installArgs struct {
@@ -130,9 +131,12 @@ func newMCPServer() *mcp.Server {
 			"Examples: kind=npx source=@modelcontextprotocol/server-memory; kind=url source=https://mcp.deepwiki.com/mcp.",
 		Annotations: changes,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, a addArgs) (*mcp.CallToolResult, any, error) {
-		e, err := registry.Spec{Kind: a.Kind, Source: a.Source, ID: a.ID, Name: a.Name, Description: a.Description, Secrets: a.SecretEnv}.Entry()
+		e, err := registry.Spec{Kind: a.Kind, Source: a.Source, ID: a.ID, Name: a.Name, Description: a.Description, Secrets: a.SecretEnv, Headers: a.Headers}.Entry()
 		if err != nil {
 			return toolError(err), nil, nil
+		}
+		if lit := shed.LiteralSecretHeaders(&e); len(lit) > 0 {
+			return toolError(fmt.Errorf("never put secret values in headers (%s): write ${NAME} in the header, list NAME in secret_env, and the user enters the value in a terminal", strings.Join(lit, ", "))), nil, nil
 		}
 		reg, err := loadRegistry()
 		if err != nil {

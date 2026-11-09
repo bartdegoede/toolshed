@@ -30,6 +30,9 @@ func Resolve(e *registry.Entry, inst *clients.Installation, overrides Values) (V
 		v := overrides[in.Key]
 		if v == "" && inst != nil {
 			v = inst.Config.Env[in.Key] // only present for non-secrets (or keyring-less installs)
+			if c, ok := UnwrapHeaders(inst.Config.HeadersHelper); v == "" && ok {
+				v = c.Values[in.Key] // a remote tool's non-secret values
+			}
 		}
 		if v == "" && in.Secret && secrets.Available() {
 			v, _ = secrets.Get(e.SecretGroup(in), in.Key)
@@ -170,7 +173,7 @@ func CheckApproved(e *registry.Entry) error {
 // repository and teammates have toolshed installed in other places.
 func BuildConfig(e *registry.Entry, vals Values, scope string) (clients.Config, error) {
 	if e.IsRemote() {
-		return clients.Config{Type: "http", URL: e.URL, HeadersHelper: e.HeaderCmd}, nil
+		return remoteConfig(e, vals, scope)
 	}
 	env := map[string]string{}
 	for k, v := range e.Env {
@@ -194,12 +197,9 @@ func BuildConfig(e *registry.Entry, vals Values, scope string) (clients.Config, 
 	}
 	cfg := clients.Config{Type: "stdio", Command: e.Command, Args: e.Args, Env: env}
 	if len(refs) > 0 {
-		self := "toolshed"
-		if scope != "project" {
-			var err error
-			if self, err = SelfPath(); err != nil {
-				return clients.Config{}, err
-			}
+		self, err := wrapperPath(scope)
+		if err != nil {
+			return clients.Config{}, err
 		}
 		cfg.Command, cfg.Args = self, ExecArgs(e, refs)
 	}

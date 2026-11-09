@@ -44,12 +44,24 @@ tools:
     clients: [claude, codex]      # optional: restrict where it installs
 ```
 
-…or a remote server:
+…or a remote server, with a token from your keyring:
+
+```yaml
+  - id: acme
+    url: https://mcp.acme.com/mcp
+    headers:                      # ${KEY} is replaced by input KEY
+      Authorization: Bearer ${ACME_TOKEN}
+    inputs:
+      - key: ACME_TOKEN
+        secret: true
+```
+
+…or with headers from a command you already have:
 
 ```yaml
   - id: github
     url: https://api.githubcopilot.com/mcp/
-    headers_helper: >-            # optional
+    headers_helper: >-
       echo "{\"Authorization\": \"Bearer $(gh auth token)\"}"
 ```
 
@@ -57,15 +69,37 @@ tools:
 | --- | --- |
 | `command`, `args` | A local MCP server speaking stdio. toolshed checks `command` is on PATH before installing. |
 | `url` | A remote MCP server (streamable HTTP). Set either `command` or `url`, not both. |
-| `headers_helper` | Remote only. A shell command that prints a JSON object of HTTP headers. Claude Code (`headersHelper`) and Codex (`http_headers_helper`) run it when they connect, so tokens are never stored. |
-| `env` | Environment variables always set for the server. |
-| `inputs` | Environment variables prompted for at install. `secret` ones are stored in the OS keyring; others go into the client config. `default` pre-fills a value; `optional` allows skipping it. |
+| `headers` | Remote only. HTTP headers to send; `${KEY}` is replaced by the value of input `KEY` (see "Remote servers with a token" below). |
+| `headers_helper` | Remote only. A shell command that prints a JSON object of HTTP headers. Claude Code (`headersHelper`) and Codex (`http_headers_helper`) run it when they connect, so tokens are never stored. Set `headers` or `headers_helper`, not both. |
+| `env` | Command servers only. Environment variables always set for the server. |
+| `inputs` | Values prompted for at install. Command servers get them as environment variables; remote servers use them in `headers`. `secret` ones are stored in the OS keyring; others go into the client config. `default` pre-fills a value; `optional` allows skipping it. |
 | `inputs[].share` | Keyring group to share a secret between tools (e.g. two Atlassian tools sharing one token). Defaults to the tool's ID. |
 | `clients` | Install into only `claude` and/or `codex`. Default is both. |
 | `pending` | Set by `toolshed mcp` on tools your agent adds. toolshed won't start or install the tool until you approve it (`toolshed approve <id>`, or `i` in the TUI), which removes the key. |
 
 Unknown keys are errors, so a typo like `comand:` fails loudly instead of
 being ignored. Check a file with `toolshed validate path/to/registry.yaml`.
+
+## Remote servers with a token
+
+A remote server that wants an API token gets it in a header:
+
+```sh
+toolshed add acme --url https://mcp.acme.com/mcp \
+  --header 'Authorization=Bearer ${ACME_TOKEN}' --secret ACME_TOKEN
+```
+
+(In the TUI, answer "yes" to "Does it need an API token?".) At install you
+enter the token, and it goes to your keyring. Claude Code and Codex are both
+registered with a headers helper, `toolshed headers acme …`, which they run
+when they connect: it reads the token from the keyring and prints the
+headers. The token is never in their config files. Without a keyring the
+headers are written into the config as they are (Claude Code `headers`, Codex
+`http_headers`).
+
+A literal token in a header (`--header 'Authorization=Bearer ghp_…'`) is
+refused, because it would be stored in your registry in plain text; the same
+goes for your agent's `add_server`.
 
 ## How secrets work
 
@@ -147,8 +181,10 @@ it would do, and `--no-install` only adds to the registry. `toolshed import
 Names that aren't valid ids (`My_Server`) are imported as one (`my-server`),
 and the old name is removed. A server that Claude Code and Codex run
 differently under the same name is imported from Claude Code, and Codex's is
-left alone. Servers that use the old SSE transport, or send fixed headers,
-are skipped: toolshed can't keep those headers in the keyring yet. A server
+left alone. Remote servers that send fixed headers (`Authorization: Bearer …`, `X-Api-Key`)
+get those headers as inputs, and the ones that look like credentials move to
+the keyring, like env vars do. Servers that use the old SSE transport are
+skipped. A server
 registered through toolshed whose entry you deleted is imported with its
 secrets where they already are in the keyring.
 

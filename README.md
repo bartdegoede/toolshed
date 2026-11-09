@@ -84,6 +84,8 @@ More ways to add tools:
 toolshed add fetch  --uvx mcp-server-fetch                     # Python package
 toolshed add docs   --url https://mcp.context7.com/mcp         # remote server
 toolshed add jira   --secret JIRA_TOKEN -- jira-mcp --site acme  # any command, with a secret
+toolshed add acme   --url https://mcp.acme.com/mcp \
+  --header 'Authorization=Bearer ${ACME_TOKEN}' --secret ACME_TOKEN  # remote server with a token
 ```
 
 npm and Python packages are pinned to their current release when you add

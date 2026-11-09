@@ -57,6 +57,7 @@ func init() {
 		{"validate", "[file]", "Check a registry file", runValidate},
 		{"completion", "bash|zsh|fish", "Print a shell completion script", runCompletion},
 		{"exec", "<id> [--secret KEY=group]... -- <command> [args...]", "Run a server with its secrets (used by Claude/Codex)", runExec},
+		{"headers", "<id> [--secret KEY=group]... [--header 'Name=template']...", "Print a remote tool's auth headers (used by Claude/Codex)", runHeaders},
 		{"__ids", "", "", runIDs},
 	}
 }

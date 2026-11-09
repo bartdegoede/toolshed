@@ -51,6 +51,15 @@ check "with the right command" '.http_headers_helper == "echo {}"'
 json="$(jq -c '.mcpServers.hosted' "$HOME/.claude.json")"
 check "claude has headersHelper" '.headersHelper == "echo {}"'
 
+section "remote tool with a token header (no keyring: static headers)"
+"$TS" add hdr --url https://hdr.example.com/mcp --header 'Authorization=Bearer ${HDR_TOKEN}' --secret HDR_TOKEN >/dev/null
+"$TS" install hdr -y --set HDR_TOKEN=t0k >/dev/null 2>&1 || bad "install hdr"
+cget hdr
+check "codex reads http_headers" '.transport.http_headers != null'
+json="$(jq -c '.mcpServers.hdr' "$HOME/.claude.json")"
+check "claude has the header" '.headers.Authorization == "Bearer t0k"'
+"$TS" remove hdr >/dev/null 2>&1 || bad "remove hdr"
+
 section "project scope"
 repo="$(mktemp -d)"; git -C "$repo" init -q
 (cd "$repo" && "$TS" install notes -y --project >/dev/null 2>&1) || bad "install --project"

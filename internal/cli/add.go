@@ -31,7 +31,8 @@ func runAdd(args []string) error {
 	force := fs.Bool("force", false, "replace a tool with the same id in your toolshed")
 	noProbe := fs.Bool("no-check", false, "skip starting the server to list its tools")
 	noPin := fs.Bool("no-pin", false, "npx/uvx: don't pin the package to its current version")
-	var env, secret, input multi
+	var env, secret, input, header multi
+	fs.Var(&header, "header", "remote only: HTTP header 'Name=value'; ${KEY} uses input KEY (repeatable)")
 	fs.Var(&env, "env", "fixed environment variable KEY=VALUE (repeatable)")
 	fs.Var(&secret, "secret", "secret env var prompted at install, stored in the keyring (repeatable)")
 	fs.Var(&input, "input", "non-secret env var prompted at install (repeatable)")
@@ -64,6 +65,12 @@ func runAdd(args []string) error {
 	if e.Env, err = keyValues("env", env); err != nil {
 		return err
 	}
+	if e.Headers, err = keyValues("header", header); err != nil {
+		return err
+	}
+	if len(e.Headers) == 0 {
+		e.Headers = nil
+	}
 	if len(e.Env) == 0 {
 		e.Env = nil
 	}
@@ -74,6 +81,9 @@ func runAdd(args []string) error {
 		e.Inputs = append(e.Inputs, registry.Input{Key: k})
 	}
 
+	if lit := shed.LiteralSecretHeaders(&e); len(lit) > 0 {
+		return usagef("%s would be stored in plain text: write the secret as ${NAME} and add --secret NAME, e.g. --header 'Authorization=Bearer ${API_TOKEN}' --secret API_TOKEN", strings.Join(lit, ", "))
+	}
 	if !*force {
 		reg, err := loadRegistry()
 		if err != nil {

@@ -24,7 +24,8 @@ type Spec struct {
 	ID          string // optional; derived from Source when empty
 	Name        string
 	Description string
-	Secrets     []string // env vars to prompt for and keep in the keyring
+	Secrets     []string          // env vars to prompt for and keep in the keyring
+	Headers     map[string]string // url only: HTTP headers, ${KEY} for a secret
 }
 
 // Entry converts the spec into a validated registry entry.
@@ -53,12 +54,13 @@ func (s Spec) Entry() (Entry, error) {
 	default:
 		return Entry{}, errors.New("kind must be command, npx, uvx or url")
 	}
-	if s.Kind != KindURL {
-		for _, k := range s.Secrets {
-			if k = strings.ToUpper(strings.TrimSpace(k)); k != "" {
-				e.Inputs = append(e.Inputs, Input{Key: k, Secret: true})
-			}
+	for _, k := range s.Secrets {
+		if k = strings.ToUpper(strings.TrimSpace(k)); k != "" {
+			e.Inputs = append(e.Inputs, Input{Key: k, Secret: true})
 		}
+	}
+	if len(s.Headers) > 0 {
+		e.Headers = s.Headers
 	}
 	return e, ValidateEntry(&e)
 }
