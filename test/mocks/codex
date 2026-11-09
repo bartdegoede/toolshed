@@ -1,51 +1,9 @@
 #!/usr/bin/env bash
-# Mock `codex` CLI for the e2e suite. `codex mcp add|remove` edit
-# $CODEX_HOME/config.toml (default ~/.codex) the way the real CLI does.
+# Mock `codex` CLI for the e2e suite. toolshed only needs it on PATH (to know
+# Codex is installed): it edits $CODEX_HOME/config.toml itself, because
+# `codex mcp add` would reset the user's settings for a server. Anything else
+# fails loudly, so the suite notices if toolshed starts depending on it.
 set -euo pipefail
-
 [[ "${1:-}" == "--version" ]] && { echo "codex-cli 0.0.0-mock"; exit 0; }
-[[ "${1:-}" == "mcp" ]] || { echo "mock codex: unsupported: $*" >&2; exit 1; }
-
-dir="${CODEX_HOME:-$HOME/.codex}"; mkdir -p "$dir/servers"
-sub="${2:-}"; name="${3:-}"; shift 3 || true
-
-render() {
-    : > "$dir/config.toml"
-    for f in "$dir/servers"/*.json; do
-        [[ -e "$f" ]] || continue
-        n="$(basename "$f" .json)"
-        printf '[mcp_servers.%s]\n' "$n" >> "$dir/config.toml"
-        jq -r '
-          if .url then "url = \(.url | @json)"
-          else "command = \(.command | @json)\nargs = \(.args | tojson)" +
-               (if (.env | length) > 0 then "\nenv = { " + (.env | to_entries | map("\(.key) = \(.value | @json)") | join(", ")) + " }" else "" end)
-          end' "$f" >> "$dir/config.toml"
-        echo >> "$dir/config.toml"
-    done
-}
-
-case "$sub" in
-    add)
-        url=""; env='{}'
-        while [[ $# -gt 0 ]]; do
-            case "$1" in
-                --url) url="$2"; shift 2 ;;
-                --env) env="$(jq --arg kv "$2" '. + {($kv | split("=")[0]): ($kv | split("=")[1:] | join("="))}' <<<"$env")"; shift 2 ;;
-                --) shift; break ;;
-                *) shift ;;
-            esac
-        done
-        if [[ -n "$url" ]]; then
-            jq -n --arg u "$url" '{url: $u}' > "$dir/servers/$name.json"
-        else
-            cmd="$1"; shift
-            # NUL-separated through stdin, so server args like -c aren't read as jq flags
-            args='[]'; [[ $# -gt 0 ]] && args="$(printf '%s\0' "$@" | jq -Rs 'split("\u0000")[:-1]')"
-            jq -n --arg c "$cmd" --argjson e "$env" --argjson a "$args" '{command: $c, args: $a, env: $e}' > "$dir/servers/$name.json"
-        fi
-        render; echo "Added $name" ;;
-    remove)
-        [[ -f "$dir/servers/$name.json" ]] || { echo "No MCP server named '$name'" >&2; exit 1; }
-        rm "$dir/servers/$name.json"; render; echo "Removed $name" ;;
-    *) echo "mock codex: unsupported mcp $sub" >&2; exit 1 ;;
-esac
+echo "mock codex: toolshed shouldn't need: codex $*" >&2
+exit 1

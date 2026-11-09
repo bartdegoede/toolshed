@@ -57,11 +57,7 @@ func runSecret(args []string) error {
 		if inst == nil {
 			return fmt.Errorf("there's no OS keyring, so secrets are stored when you install: run `toolshed install %s`", e.ID)
 		}
-		scope := inst.ClaudeScope
-		if scope == "" {
-			scope = "user"
-		}
-		opts := shed.InstallOptions{Scope: scope, Clients: inst.Clients()}
+		opts := shed.KeepScopes(inst)
 		interactive := term.IsTerminal(int(os.Stdin.Fd()))
 		return installOne(e, inst, shed.Values{in.Key: value}, opts, false, interactive)
 	}

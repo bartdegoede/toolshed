@@ -17,6 +17,8 @@ expect() { # expect <desc> <exit-code> <cmd...>
 has() { grep -q -- "$2" <<<"$1" && ok "$3" || bad "$3" "$1"; }
 claude_cfg() { jq -c --arg n "$1" '.mcpServers[$n] // empty' "$HOME/.claude.json" 2>/dev/null; }
 codex_has() { grep -q "^\[mcp_servers.$1\]" "$HOME/.codex/config.toml" 2>/dev/null; }
+codex_cfg() { # codex_cfg <name> [file]: the server's table as JSON (via python's tomllib)
+    python3 -c 'import sys,tomllib,json; print(json.dumps(tomllib.load(open(sys.argv[2],"rb")).get("mcp_servers",{}).get(sys.argv[1],{}),sort_keys=True,separators=(",",":")))' "$1" "${2:-$HOME/.codex/config.toml}" 2>/dev/null; }
 
 section "basics"
 expect "--version" 0 "$TS" --version
@@ -54,9 +56,9 @@ expect "install --set for an unknown input fails" 1 "$TS" install hi -y --set NO
 expect "install a remote tool" 0 "$TS" install docs -y
 has "$(claude_cfg docs)" '"type":"http"' "claude: remote server registered as http"
 grep -q 'url = "https://docs.example.com/mcp"' "$HOME/.codex/config.toml" && ok "codex: remote url" || bad "codex: remote url"
-expect "headers_helper tools are Claude-only" 0 "$TS" install github -y
-codex_has github && bad "github should not be in codex" || ok "github skipped for codex"
-expect "--client codex on a Claude-only tool fails" 1 "$TS" install github -y --client codex
+expect "install a remote tool with a headers helper" 0 "$TS" install github -y
+has "$(claude_cfg github)" '"headersHelper":"echo.*gh auth token' "claude: headersHelper"
+has "$(codex_cfg github)" '"http_headers_helper":"echo.*gh auth token' "codex: http_headers_helper"
 expect "install an unknown tool fails" 1 "$TS" install nope -y
 
 section "list"
@@ -69,12 +71,27 @@ section "project scope"
 repo="$(mktemp -d)"; git -C "$repo" init -q
 ( cd "$repo" && "$TS" install hi -y --project >/dev/null 2>&1 )
 jq -e '.mcpServers.hi' "$repo/.mcp.json" >/dev/null 2>&1 && ok "--project writes .mcp.json" || bad "--project writes .mcp.json"
+has "$(codex_cfg hi "$repo/.codex/config.toml")" '"command":"ping-mcp"' "--project writes .codex/config.toml"
+out="$(cd "$repo" && "$TS" install hi -y --project 2>&1)"; has "$out" "trust the project" "and says Codex needs the project trusted"
 out="$(cd "$repo" && "$TS" list)"; has "$out" "(project)" "list shows the project scope"
 norepo="$(mktemp -d)"; pushd "$norepo" >/dev/null; expect "--project outside a repo fails" 1 "$TS" install hi -y --project; popd >/dev/null
 
 section "update keeps earlier values"
+# The user's own settings for greet in both clients.
+python3 - "$HOME/.codex/config.toml" <<'PY'
+import sys; p=sys.argv[1]; s=open(p).read()
+s=s.replace("[mcp_servers.greet]\n", "[mcp_servers.greet]\nstartup_timeout_sec = 45 # mine\n", 1)
+s+="\n[mcp_servers.greet.tools.notify]\napproval_mode = \"approve\"\n"
+open(p,"w").write(s)
+PY
+jq '.mcpServers.greet.timeout = 9000' "$HOME/.claude.json" > "$HOME/.claude.tmp" && mv "$HOME/.claude.tmp" "$HOME/.claude.json"
 expect "update greet" 0 "$TS" update greet
 has "$(claude_cfg greet)" '"NTFY_TOPIC":"abc123"' "value survived update"
+has "$(claude_cfg greet)" '"timeout":9000' "claude: the user's timeout survived update"
+gcfg="$(codex_cfg greet)"
+has "$gcfg" '"startup_timeout_sec":45' "codex: the user's timeout survived update"
+has "$gcfg" '"approval_mode":"approve"' "codex: per-tool approval survived update"
+grep -q "# mine" "$HOME/.codex/config.toml" && ok "codex: comments survived update" || bad "codex: comments survived update"
 
 section "registry changes under an installed tool"
 # Like a teammate editing a shared registry: what greet runs changes.
@@ -140,7 +157,7 @@ expect "remove agentic" 0 "$TS" remove agentic
 section "import"
 # A server set up by hand in both clients, with its token in plain text.
 claude mcp add-json byhand '{"type":"stdio","command":"ping-mcp","env":{"NTFY_TOPIC":"t1","NTFY_SERVER":"https://n.example"}}' -s user >/dev/null
-codex mcp add byhand --env NTFY_TOPIC=t1 --env NTFY_SERVER=https://n.example -- ping-mcp >/dev/null
+printf '\n[mcp_servers.byhand]\ncommand = "ping-mcp"\nenv = { NTFY_TOPIC = "t1", NTFY_SERVER = "https://n.example" }\n' >> "$HOME/.codex/config.toml"
 expect "doctor points at import" 0 "$TS" doctor --no-start
 has "$out" "toolshed import" "for servers toolshed doesn't manage"
 expect "import --dry-run" 0 "$TS" import --dry-run

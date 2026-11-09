@@ -209,6 +209,8 @@ func (m model) renderDetail() string {
 	}
 	if !e.SupportsClient(clients.Codex) {
 		b.WriteString("  " + warnStyle.Render("Claude Code only") + "\n")
+	} else if !e.SupportsClient(clients.Claude) {
+		b.WriteString("  " + warnStyle.Render("Codex only") + "\n")
 	}
 
 	if len(e.Inputs) > 0 {

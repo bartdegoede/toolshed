@@ -49,7 +49,7 @@ tools:
 ```yaml
   - id: github
     url: https://api.githubcopilot.com/mcp/
-    headers_helper: >-            # optional, Claude Code only
+    headers_helper: >-            # optional
       echo "{\"Authorization\": \"Bearer $(gh auth token)\"}"
 ```
 
@@ -57,7 +57,7 @@ tools:
 | --- | --- |
 | `command`, `args` | A local MCP server speaking stdio. toolshed checks `command` is on PATH before installing. |
 | `url` | A remote MCP server (streamable HTTP). Set either `command` or `url`, not both. |
-| `headers_helper` | Remote only. A shell command that prints a JSON object of HTTP headers. Claude Code runs it on every connect, so tokens are never stored. Codex has no equivalent, so these tools install into Claude Code only. |
+| `headers_helper` | Remote only. A shell command that prints a JSON object of HTTP headers. Claude Code (`headersHelper`) and Codex (`http_headers_helper`) run it when they connect, so tokens are never stored. |
 | `env` | Environment variables always set for the server. |
 | `inputs` | Environment variables prompted for at install. `secret` ones are stored in the OS keyring; others go into the client config. `default` pre-fills a value; `optional` allows skipping it. |
 | `inputs[].share` | Keyring group to share a secret between tools (e.g. two Atlassian tools sharing one token). Defaults to the tool's ID. |
@@ -195,8 +195,27 @@ mirrors, set `TOOLSHED_PYPI_URL` to one that serves PyPI's JSON API.
 
 `toolshed install <id>` installs for your user, so the tool is available
 in every project. `--project` (or choosing "this repo" in the TUI) writes it
-to the repository's `.mcp.json` instead, so it can be committed and shared.
-This is Claude Code only; Codex has no project scope. Tools with secrets are
+into the repository instead, so it can be committed and shared: `.mcp.json`
+for Claude Code and `.codex/config.toml` for Codex. Codex only reads a
+project's config once you've trusted the project (start `codex` in it and
+accept); toolshed tells you when it isn't trusted yet. Tools with secrets are
 registered there as plain `toolshed exec …` (found on `PATH`) rather than
 your own toolshed path, so they work for teammates who installed toolshed
-somewhere else. `toolshed update` keeps each tool's scope.
+somewhere else. `toolshed update` keeps each tool's scope in each client.
+
+## How toolshed writes each client's config
+
+Claude Code registrations go through `claude mcp add-json`. Settings
+toolshed doesn't manage (a `timeout`, say) are carried over when it
+re-registers a tool.
+
+Codex registrations are written to its `config.toml` directly, because
+`codex mcp add` resets a server's whole table, so every update would lose
+your settings for it, and it can't set a headers helper. toolshed only
+touches the keys it manages in `[mcp_servers.<id>]` (`command`, `args`,
+`env`, or `url`, `http_headers_helper`, `http_headers`), and leaves
+everything else as it was: comments, `startup_timeout_sec`,
+`enabled_tools` / `disabled_tools`, per-tool approvals, other servers. It
+checks the result parses before replacing the file. Older toolshed versions
+registered `my-tool` as `my_tool` in Codex; the next update renames it and
+keeps its settings.

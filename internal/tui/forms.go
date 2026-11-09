@@ -156,7 +156,7 @@ func newInstallForm(e *registry.Entry, vals shed.Values, width int) (*huh.Form, 
 			Title("Install for").
 			Options(
 				huh.NewOption("All projects", "user"),
-				huh.NewOption("This repo only ("+filepath.Base(root)+", Claude Code)", "project"),
+				huh.NewOption("This repo only ("+filepath.Base(root)+")", "project"),
 			).
 			Value(&st.scope))
 	}

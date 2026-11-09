@@ -29,7 +29,7 @@ type Entry struct {
 	Command     string            `yaml:"command,omitempty"`        // stdio server: executable (on PATH or absolute)
 	Args        []string          `yaml:"args,omitempty"`           // stdio server: arguments
 	URL         string            `yaml:"url,omitempty"`            // remote server (streamable HTTP)
-	HeaderCmd   string            `yaml:"headers_helper,omitempty"` // remote: command printing JSON headers (Claude only)
+	HeaderCmd   string            `yaml:"headers_helper,omitempty"` // remote: command printing JSON headers
 	Env         map[string]string `yaml:"env,omitempty"`            // fixed environment variables
 	Inputs      []Input           `yaml:"inputs,omitempty"`         // values prompted for at install
 	Clients     []string          `yaml:"clients,omitempty"`        // restrict to "claude" and/or "codex"
@@ -144,12 +144,7 @@ func (e *Entry) Summary() string {
 }
 
 // SupportsClient reports whether the entry may be installed into client.
-// Remote servers with a headers helper are Claude-only (Codex has no
-// equivalent), regardless of the clients list.
 func (e *Entry) SupportsClient(client string) bool {
-	if client == "codex" && e.HeaderCmd != "" {
-		return false
-	}
 	if len(e.Clients) == 0 {
 		return true
 	}

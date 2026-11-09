@@ -26,6 +26,13 @@ just lint
   registry file.
 - Label PRs (security, enhancement, bug, documentation, dependencies): the
   release notes are grouped by those labels (.github/release.yml).
+- Codex: toolshed edits config.toml itself (internal/clients/codextoml.go),
+  only the keys it owns, because `codex mcp add` resets a server's table.
+  Claude: `claude mcp add-json`, carrying over keys toolshed doesn't model.
+  Support both clients equally: a feature isn't done until it works in Codex.
+- `just test-contract` runs toolshed against the real claude and codex CLIs
+  (versions pinned in CI's contract job). Run it after touching
+  internal/clients; bump the pins on purpose.
 - TUI: Bubble Tea v2 / Lipgloss v2 / huh v2 (charm.land/... import paths).
 - Never let tests touch the real ~/.claude.json, ~/.codex or keychain: use
   secrets.UseMockForTest, t.Setenv("HOME", t.TempDir()), TOOLSHED_HOME.

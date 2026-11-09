@@ -73,8 +73,8 @@ func importOne(name string, inst *clients.Installation) Import {
 			return im
 		}
 		e.URL, e.HeaderCmd = cfg.URL, cfg.HeadersHelper
-		if e.HeaderCmd != "" && slices.Contains(im.Clients, clients.Codex) {
-			im.Clients = []string{clients.Claude}
+		if c := inst.CodexConfig; inst.Codex && (c.BearerTokenEnvVar != "" || len(c.EnvHeaders) > 0) {
+			im.Notes = append(im.Notes, "Codex reads its token from your environment (bearer_token_env_var / env_http_headers); that setting stays as it is")
 		}
 	default:
 		cmd, refs, wrapped := Unwrap(cfg)

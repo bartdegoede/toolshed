@@ -48,8 +48,41 @@ func Resolve(e *registry.Entry, inst *clients.Installation, overrides Values) (V
 
 // InstallOptions controls where a tool is installed.
 type InstallOptions struct {
-	Scope   string   // "user" (default) or "project"; project applies to Claude only
-	Clients []string // targets; empty means every available client the entry supports
+	Scope      string   // Claude: "user" (default), "local" or "project"
+	CodexScope string   // Codex: "user" or "project"; defaults to project when Scope is, else user
+	Clients    []string // targets; empty means every available client the entry supports
+}
+
+func (o InstallOptions) scopeFor(client string) string {
+	if client != clients.Codex {
+		return o.Scope
+	}
+	if o.CodexScope != "" {
+		return o.CodexScope
+	}
+	if o.Scope == "project" {
+		return "project"
+	}
+	return "user"
+}
+
+// KeepScopes is the InstallOptions for installing a tool again exactly where
+// it is now: the same clients, each at its current scope.
+func KeepScopes(inst *clients.Installation) InstallOptions {
+	opts := InstallOptions{Scope: inst.ClaudeScope, CodexScope: inst.CodexScope, Clients: inst.Clients()}
+	if opts.Scope == "" {
+		opts.Scope = "user" // Codex-only install
+	}
+	if opts.CodexScope == "" {
+		opts.CodexScope = "user"
+	}
+	return opts
+}
+
+// Result is what Install did.
+type Result struct {
+	Clients []string // the clients it's now registered in
+	Notes   []string // things the user should know
 }
 
 // Targets returns the clients an install would write to.
@@ -63,9 +96,6 @@ func Targets(e *registry.Entry, opts InstallOptions) []string {
 		if !e.SupportsClient(c) || !clients.Available(c) {
 			continue
 		}
-		if opts.Scope == "project" && c == clients.Codex {
-			continue // Codex has no project-scoped servers
-		}
 		out = append(out, c)
 	}
 	return out
@@ -73,44 +103,48 @@ func Targets(e *registry.Entry, opts InstallOptions) []string {
 
 // Install stores secrets, builds the client config and registers the tool
 // with every target client. It fails if any client fails.
-func Install(e *registry.Entry, vals Values, opts InstallOptions) ([]string, error) {
+func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error) {
 	if opts.Scope == "" {
 		opts.Scope = "user"
 	}
 	if err := CheckApproved(e); err != nil {
-		return nil, err
+		return Result{}, err
 	}
 	targets := Targets(e, opts)
 	if len(targets) == 0 {
-		return nil, fmt.Errorf("no target client: install Claude Code or Codex (or check %s's clients list)", e.ID)
+		return Result{}, fmt.Errorf("no target client: install Claude Code or Codex (or check %s's clients list)", e.ID)
 	}
 	if err := CheckCommand(e); err != nil {
-		return nil, err
+		return Result{}, err
 	}
 	for _, in := range e.Inputs {
 		if vals[in.Key] == "" && !in.Optional {
-			return nil, fmt.Errorf("%s needs a value for %s", e.ID, in.Key)
+			return Result{}, fmt.Errorf("%s needs a value for %s", e.ID, in.Key)
 		}
-		// Project scope writes .mcp.json, which is meant to be committed.
+		// Project scope writes .mcp.json / .codex/config.toml, meant to be committed.
 		// Without a keyring the secret would go into it in plain text.
-		if opts.Scope == "project" && in.Secret && vals[in.Key] != "" && !secrets.Available() {
-			return nil, fmt.Errorf("%s: no OS keyring, so %s would be written into the repository's .mcp.json in plain text; install it for your user instead", e.ID, in.Key)
+		if (opts.Scope == "project" || opts.scopeFor(clients.Codex) == "project") && in.Secret && vals[in.Key] != "" && !secrets.Available() {
+			return Result{}, fmt.Errorf("%s: no OS keyring, so %s would be written into the repository's config in plain text; install it for your user instead", e.ID, in.Key)
 		}
 	}
-	cfg, err := BuildConfig(e, vals, opts.Scope)
-	if err != nil {
-		return nil, err
-	}
+	var res Result
 	var errs []error
-	var done []string
 	for _, c := range targets {
-		if err := clients.Register(c, e.ID, cfg, opts.Scope); err != nil {
+		scope := opts.scopeFor(c)
+		cfg, err := BuildConfig(e, vals, scope)
+		if err != nil {
+			return res, err
+		}
+		if err := clients.Register(c, e.ID, cfg, scope); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", c, err))
 			continue
 		}
-		done = append(done, c)
+		res.Clients = append(res.Clients, c)
+		if c == clients.Codex && scope == "project" && !clients.CodexTrusts() {
+			res.Notes = append(res.Notes, "Codex only loads this repository's .codex/config.toml once you trust the project (start codex here and accept)")
+		}
 	}
-	return done, errors.Join(errs...)
+	return res, errors.Join(errs...)
 }
 
 // ErrPending is returned for tools an agent added that the user hasn't
@@ -200,7 +234,7 @@ func Uninstall(reg *registry.Registry, e *registry.Entry, inst *clients.Installa
 			}
 		}
 		if inst.Codex {
-			if err := clients.Unregister(clients.Codex, e.ID, ""); err != nil {
+			if err := clients.Unregister(clients.Codex, e.ID, inst.CodexScope); err != nil {
 				errs = append(errs, fmt.Errorf("codex: %w", err))
 			}
 		}

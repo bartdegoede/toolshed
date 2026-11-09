@@ -152,8 +152,8 @@ func TestAddCreatesFile(t *testing.T) {
 }
 
 func TestSupportsClient(t *testing.T) {
-	if (&Entry{URL: "https://x", HeaderCmd: "y"}).SupportsClient("codex") {
-		t.Error("headers_helper entries are Claude-only")
+	if !(&Entry{URL: "https://x", HeaderCmd: "y"}).SupportsClient("codex") {
+		t.Error("Codex supports headers helpers too (http_headers_helper)")
 	}
 	if !(&Entry{Command: "x"}).SupportsClient("codex") {
 		t.Error("no clients list means all clients")
