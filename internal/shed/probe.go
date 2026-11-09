@@ -46,11 +46,18 @@ func Probe(ctx context.Context, e *registry.Entry) ([]Tool, error) {
 	var transport mcp.Transport
 	if e.IsRemote() {
 		client := http.DefaultClient
-		if e.HeaderCmd != "" {
-			headers, err := runHeadersHelper(ctx, e.HeaderCmd)
-			if err != nil {
-				return nil, err
-			}
+		var headers map[string]string
+		var err error
+		switch {
+		case e.HeaderCmd != "":
+			headers, err = runHeadersHelper(ctx, e.HeaderCmd)
+		case len(e.Headers) > 0:
+			headers, err = EntryHeaders(e)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(headers) > 0 {
 			client = &http.Client{Transport: headerTransport{headers, http.DefaultTransport}}
 		}
 		transport = &mcp.StreamableClientTransport{Endpoint: e.URL, HTTPClient: client, MaxRetries: -1, DisableStandaloneSSE: true}

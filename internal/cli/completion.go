@@ -44,7 +44,7 @@ func runIDs([]string) error {
 func visibleCommands() []command {
 	var out []command
 	for _, c := range commands {
-		if c.name != "exec" && !strings.HasPrefix(c.name, "__") {
+		if c.name != "exec" && c.name != "headers" && !strings.HasPrefix(c.name, "__") {
 			out = append(out, c)
 		}
 	}

@@ -115,9 +115,15 @@ func check(e *registry.Entry, inst *clients.Installation) Health {
 		return h // the rest describes the new entry, which isn't what's installed
 	}
 	for _, cfg := range registrations(inst) {
+		self := ""
 		if _, _, wrapped := Unwrap(cfg); wrapped {
-			if _, err := os.Stat(cfg.Command); err != nil && filepath.IsAbs(cfg.Command) {
-				add(Error, fmt.Sprintf("registered with toolshed at %s, which is gone", cfg.Command), "toolshed update "+e.ID)
+			self = cfg.Command
+		} else if c, ok := UnwrapHeaders(cfg.HeadersHelper); ok {
+			self = c.Self
+		}
+		if self != "" && filepath.IsAbs(self) {
+			if _, err := os.Stat(self); err != nil {
+				add(Error, fmt.Sprintf("registered with toolshed at %s, which is gone", self), "toolshed update "+e.ID)
 				break
 			}
 		}
@@ -166,7 +172,9 @@ func Orphans(reg *registry.Registry, installed map[string]*clients.Installation)
 			continue
 		}
 		for _, cfg := range registrations(inst) {
-			if _, _, wrapped := Unwrap(cfg); wrapped {
+			_, _, wrapped := Unwrap(cfg)
+			_, helper := UnwrapHeaders(cfg.HeadersHelper)
+			if wrapped || helper {
 				out = append(out, name)
 				break
 			}

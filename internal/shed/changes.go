@@ -45,8 +45,8 @@ func changes(e *registry.Entry, cfg clients.Config) []string {
 		if cfg.URL != e.URL {
 			out = append(out, fmt.Sprintf("connects to %s (was: %s)", e.URL, was))
 		}
-		if cfg.URL != "" && cfg.HeadersHelper != e.HeaderCmd && e.SupportsClient(clients.Claude) {
-			out = append(out, fmt.Sprintf("gets its auth headers from %s (was: %s)", orNothing(e.HeaderCmd), orNothing(cfg.HeadersHelper)))
+		if cfg.URL != "" {
+			out = append(out, remoteAuthChanges(e, cfg)...)
 		}
 		return out
 	}
@@ -118,13 +118,6 @@ func describe(cfg clients.Config) string {
 	}
 	e := registry.Entry{Command: cmd[0], Args: cmd[1:]}
 	return e.CommandLine()
-}
-
-func orNothing(s string) string {
-	if s == "" {
-		return "nothing"
-	}
-	return s
 }
 
 func sortedKeys(m map[string]string) []string {

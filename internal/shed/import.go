@@ -68,11 +68,36 @@ func importOne(name string, inst *clients.Installation) Import {
 		im.Skip = "it uses the old SSE transport, which toolshed doesn't support"
 		return im
 	case cfg.URL != "":
-		if len(cfg.Headers) > 0 {
-			im.Skip = "it sends fixed headers (usually a token), which toolshed can't keep in the keyring yet"
-			return im
-		}
 		e.URL, e.HeaderCmd = cfg.URL, cfg.HeadersHelper
+		if c, ok := UnwrapHeaders(cfg.HeadersHelper); ok {
+			// Registered by toolshed, then deleted from the registry.
+			e.HeaderCmd, e.Headers = "", c.Templates
+			for _, k := range sortedKeys(c.Secrets) {
+				in := registry.Input{Key: k, Secret: true}
+				if c.Secrets[k] != id {
+					in.Share = c.Secrets[k]
+				}
+				e.Inputs = append(e.Inputs, in)
+			}
+			for _, k := range sortedKeys(c.Values) {
+				im.Vars = append(im.Vars, ImportVar{Key: k, Value: c.Values[k]})
+			}
+		} else if len(cfg.Headers) > 0 && cfg.HeadersHelper == "" {
+			// Static headers, usually a token in plain text: each becomes an
+			// input, so a secret one can move to the keyring.
+			e.Headers = map[string]string{}
+			for _, name := range sortedKeys(cfg.Headers) {
+				v := cfg.Headers[name]
+				key := headerKey(name)
+				tmpl := "${" + key + "}"
+				if strings.EqualFold(name, "Authorization") && strings.HasPrefix(v, "Bearer ") {
+					key = strings.ToUpper(strings.ReplaceAll(id, "-", "_")) + "_TOKEN"
+					tmpl, v = "Bearer ${"+key+"}", strings.TrimPrefix(v, "Bearer ")
+				}
+				e.Headers[name] = tmpl
+				im.Vars = append(im.Vars, ImportVar{Key: key, Value: v, Secret: v != "" && SecretHeader(name)})
+			}
+		}
 		if c := inst.CodexConfig; inst.Codex && (c.BearerTokenEnvVar != "" || len(c.EnvHeaders) > 0) {
 			im.Notes = append(im.Notes, "Codex reads its token from your environment (bearer_token_env_var / env_http_headers); that setting stays as it is")
 		}
@@ -120,6 +145,30 @@ func (im *Import) Build() registry.Entry {
 		im.Values[v.Key] = v.Value
 	}
 	return e
+}
+
+// SecretHeader guesses from an HTTP header's name whether it carries a
+// credential.
+func SecretHeader(name string) bool {
+	n := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+	return SecretName(n) || strings.Contains(n, "KEY") || n == "COOKIE"
+}
+
+// headerKey turns a header name into an input key: X-Api-Key → X_API_KEY.
+func headerKey(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(name) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	k := strings.Trim(b.String(), "_")
+	if k == "" || k[0] >= '0' && k[0] <= '9' {
+		k = "H_" + k
+	}
+	return k
 }
 
 // SecretName guesses from an env var's name whether it holds a secret.

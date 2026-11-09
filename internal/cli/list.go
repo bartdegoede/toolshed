@@ -177,6 +177,21 @@ func runValidate(args []string) error {
 	return nil
 }
 
+// runHeaders is the headers helper Claude Code and Codex run for remote tools
+// with secrets (see shed.HeadersArgs). It prints the headers as JSON on
+// stdout, which is all the clients read.
+func runHeaders(args []string) error {
+	call, err := shed.ParseHeadersArgs(args)
+	if err != nil {
+		return usagef("%v", err)
+	}
+	headers, err := call.Headers()
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(headers)
+}
+
 // runExec is what Claude Code and Codex launch for tools with secrets:
 //
 //	toolshed exec <id> --secret KEY=group ... -- <command> <args...>

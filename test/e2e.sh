@@ -59,6 +59,12 @@ grep -q 'url = "https://docs.example.com/mcp"' "$HOME/.codex/config.toml" && ok 
 expect "install a remote tool with a headers helper" 0 "$TS" install github -y
 has "$(claude_cfg github)" '"headersHelper":"echo.*gh auth token' "claude: headersHelper"
 has "$(codex_cfg github)" '"http_headers_helper":"echo.*gh auth token' "codex: http_headers_helper"
+expect "add a remote tool with a token header" 0 "$TS" add hdr --url https://hdr.example.com/mcp --header 'Authorization=Bearer ${HDR_TOKEN}' --secret HDR_TOKEN
+expect "a literal token in a header is refused" 2 "$TS" add lit --url https://lit.example.com/mcp --header 'Authorization=Bearer abc'
+expect "install it" 0 "$TS" install hdr -y --set HDR_TOKEN=t0k
+has "$(claude_cfg hdr)" '"headers":{"Authorization":"Bearer t0k"}' "claude: without a keyring the header is static"
+has "$(codex_cfg hdr)" '"http_headers":{"Authorization":"Bearer t0k"}' "codex: the same, as http_headers"
+expect "uninstall it" 0 "$TS" remove hdr
 expect "install an unknown tool fails" 1 "$TS" install nope -y
 
 section "list"

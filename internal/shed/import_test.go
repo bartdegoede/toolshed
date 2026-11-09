@@ -70,7 +70,7 @@ func TestImports(t *testing.T) {
 	if d := got["Docs_Server"]; !d.Rename || d.Entry.ID != "docs-server" || d.Entry.URL != "https://docs.example/mcp" {
 		t.Errorf("Docs_Server should be renamed to docs-server: %+v", d)
 	}
-	for _, n := range []string{"legacy", "headers"} {
+	for _, n := range []string{"legacy"} {
 		if got[n].Skip == "" {
 			t.Errorf("%s should be skipped", n)
 		}

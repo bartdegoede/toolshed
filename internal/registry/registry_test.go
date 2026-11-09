@@ -75,20 +75,24 @@ func TestLoadExplicitMissingRegistryIsError(t *testing.T) {
 
 func TestValidation(t *testing.T) {
 	cases := map[string]struct{ yaml, want string }{
-		"typo":          {"tools: [{id: a, comand: x}]", "comand"},
-		"no id":         {"tools: [{command: x}]", "id is required"},
-		"bad id":        {"tools: [{id: My_Tool, command: x}]", "lowercase"},
-		"neither":       {"tools: [{id: a}]", "either command"},
-		"both":          {"tools: [{id: a, command: x, url: 'https://x'}]", "not both"},
-		"bad url":       {"tools: [{id: a, url: 'ftp://x'}]", "http"},
-		"args no cmd":   {"tools: [{id: a, url: 'https://x', args: [y]}]", "args requires command"},
-		"helper no url": {"tools: [{id: a, command: x, headers_helper: y}]", "only applies to url"},
-		"remote inputs": {"tools: [{id: a, url: 'https://x', inputs: [{key: K}]}]", "only apply to command"},
-		"bad client":    {"tools: [{id: a, command: x, clients: [cursor]}]", "unknown client"},
-		"bad key":       {"tools: [{id: a, command: x, inputs: [{key: api-key}]}]", "env var"},
-		"dup key":       {"tools: [{id: a, command: x, inputs: [{key: K}, {key: K}]}]", "twice"},
-		"secret dflt":   {"tools: [{id: a, command: x, inputs: [{key: K, secret: true, default: v}]}]", "cannot have a default"},
-		"dup id":        {"tools: [{id: a, command: x}, {id: a, command: y}]", "duplicate id"},
+		"typo":           {"tools: [{id: a, comand: x}]", "comand"},
+		"no id":          {"tools: [{command: x}]", "id is required"},
+		"bad id":         {"tools: [{id: My_Tool, command: x}]", "lowercase"},
+		"neither":        {"tools: [{id: a}]", "either command"},
+		"both":           {"tools: [{id: a, command: x, url: 'https://x'}]", "not both"},
+		"bad url":        {"tools: [{id: a, url: 'ftp://x'}]", "http"},
+		"args no cmd":    {"tools: [{id: a, url: 'https://x', args: [y]}]", "args requires command"},
+		"helper no url":  {"tools: [{id: a, command: x, headers_helper: y}]", "only applies to url"},
+		"remote env":     {"tools: [{id: a, url: 'https://x', env: {A: b}}]", "env only applies to command"},
+		"unused input":   {"tools: [{id: a, url: 'https://x', inputs: [{key: K}]}]", "isn't used"},
+		"unknown ref":    {"tools: [{id: a, url: 'https://x', headers: {Authorization: 'Bearer ${T}'}}]", "isn't one of its inputs"},
+		"cmd headers":    {"tools: [{id: a, command: x, headers: {A: b}}]", "only apply to url"},
+		"helper+headers": {"tools: [{id: a, url: 'https://x', headers_helper: h, headers: {A: b}}]", "not both"},
+		"bad client":     {"tools: [{id: a, command: x, clients: [cursor]}]", "unknown client"},
+		"bad key":        {"tools: [{id: a, command: x, inputs: [{key: api-key}]}]", "env var"},
+		"dup key":        {"tools: [{id: a, command: x, inputs: [{key: K}, {key: K}]}]", "twice"},
+		"secret dflt":    {"tools: [{id: a, command: x, inputs: [{key: K, secret: true, default: v}]}]", "cannot have a default"},
+		"dup id":         {"tools: [{id: a, command: x}, {id: a, command: y}]", "duplicate id"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -219,5 +223,23 @@ func TestCommandLineQuotesArgs(t *testing.T) {
 	r := Entry{URL: "https://x/mcp", HeaderCmd: "gh auth token"}
 	if got := r.CommandLine(); !strings.Contains(got, "https://x/mcp") || !strings.Contains(got, "gh auth token") {
 		t.Fatalf("remote CommandLine = %s", got)
+	}
+}
+
+func TestRemoteHeaders(t *testing.T) {
+	f, err := Parse([]byte("tools: [{id: gh, url: 'https://x/mcp', headers: {Authorization: 'Bearer ${TOKEN}', X-Team: core}, inputs: [{key: TOKEN, secret: true}]}]"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := f.Tools[0]
+	out, missing := ExpandHeaders(e.Headers, map[string]string{"TOKEN": "abc"})
+	if out["Authorization"] != "Bearer abc" || out["X-Team"] != "core" || len(missing) != 0 {
+		t.Fatalf("expand: %v %v", out, missing)
+	}
+	if _, missing := ExpandHeaders(e.Headers, nil); len(missing) != 1 || missing[0] != "TOKEN" {
+		t.Fatalf("missing: %v", missing)
+	}
+	if got := e.CommandLine(); !strings.Contains(got, "Authorization: Bearer ${TOKEN}") {
+		t.Fatalf("CommandLine should show the header templates (never values): %s", got)
 	}
 }
