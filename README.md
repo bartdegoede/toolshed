@@ -105,6 +105,8 @@ into your keychain. It guesses which env vars are secrets from their names
 `--dry-run` shows what it would do first. In the TUI, press `m` to see them
 and import them one at a time.
 
+![The import screen: servers Claude Code and Codex have that toolshed doesn't manage, with their values masked](docs/import.png)
+
 ## Let your agent manage its tools
 
 ```sh

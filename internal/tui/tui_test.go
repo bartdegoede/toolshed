@@ -222,8 +222,9 @@ func TestImportScreen(t *testing.T) {
 	if mm.mode != modeForm || mm.formKind != formImport || len(mm.impSecrets) != 1 || mm.impSecrets[0] != "API_TOKEN" {
 		t.Fatalf("enter should ask which values are secrets, API_TOKEN ticked: mode %v kind %v %v", mm.mode, mm.formKind, mm.impSecrets)
 	}
-	if out := ansi.ReplaceAllString(mm.View().Content, ""); !strings.Contains(out, "Which of these are secrets?") {
-		t.Fatalf("form not shown:\n%s", out)
+	out = ansi.ReplaceAllString(mm.View().Content, "")
+	if !strings.Contains(out, "Which of these are secrets?") || !strings.Contains(out, "[•] API_TOKEN") || !strings.Contains(out, "[ ] LEVEL") {
+		t.Fatalf("the form must show every value, the secret one ticked:\n%s", out)
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if mm := m.(model); mm.mode != modeImport {

@@ -101,10 +101,13 @@ func (m model) handleImportKey(key string) (tea.Model, tea.Cmd) {
 		}
 		var field huh.Field
 		if len(opts) > 0 {
+			desc := "Ticked by their names; check them. " + where + "\nspace: tick · enter: import"
 			field = huh.NewMultiSelect[string]().
 				Title("Which of these are secrets?").
-				Description("Ticked by their names; check them. " + where + "\nspace: tick · enter: import").
+				Description(desc).
 				Options(opts...).
+				// huh sizes the list too small without a height, hiding the options.
+				Height(len(opts) + lipgloss.Height(lipgloss.NewStyle().Width(m.detailWidth()-4).Render(desc)) + 2).
 				Value(&m.impSecrets)
 		} else {
 			m.confirm = true
