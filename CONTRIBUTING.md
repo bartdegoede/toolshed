@@ -33,6 +33,7 @@ examples/ping-mcp/  example server (separate Go module)
 
 - Keep features in `shed` so the CLI and TUI stay in sync.
 - New registry fields need validation in `registry.ValidateEntry`, a test
-  case, and a line in `docs/registry.md`.
+  case, and a line in `docs/registry.md`. User-facing changes update the
+  page in `docs/` that describes them (see AGENTS.md).
 - Don't reference IDs from the shipped `registry.yaml` in tests; build
   entries inline instead, so the examples can change freely.
