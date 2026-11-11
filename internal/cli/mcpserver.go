@@ -169,7 +169,7 @@ func newMCPServer() *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "install_server",
-		Description: "Install a server from the toolshed into " + clients.Labels("and") + ". Fails if it needs secrets the user hasn't entered yet.",
+		Description: "Install a server from the toolshed into the clients the user chose (`toolshed clients`; until then, every one of " + clients.Labels("and") + " on PATH). Fails if it needs secrets the user hasn't entered yet.",
 		Annotations: changes,
 	}, func(_ context.Context, _ *mcp.CallToolRequest, a installArgs) (*mcp.CallToolResult, any, error) {
 		reg, err := loadRegistry()

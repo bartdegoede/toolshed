@@ -204,6 +204,24 @@ expect "remove docs (installed → uninstalls first)" 0 "$TS" remove docs
 [[ -z "$(claude_cfg docs)" ]] && ok "removed tool was uninstalled" || bad "removed tool was uninstalled"
 grep -q "id: docs" "$TOOLSHED_HOME/registry.yaml" && bad "docs still in registry" || ok "docs deleted from registry"
 
+section "clients"
+expect "clients: nothing chosen yet" 0 "$TS" clients
+has "$out" "haven't chosen" "says every client on PATH is used"
+expect "clients codex" 0 "$TS" clients codex
+expect "add pick" 0 "$TS" add pick --no-check -- ping-mcp
+expect "install into the chosen client only" 0 "$TS" install pick -y
+codex_has pick && ok "in codex" || bad "in codex"
+[[ -z "$(claude_cfg pick)" ]] && ok "not in claude" || bad "not in claude" "$(claude_cfg pick)"
+expect "--client still picks one" 0 "$TS" install pick --client claude -y
+[[ -n "$(claude_cfg pick)" ]] && ok "--client claude" || bad "--client claude"
+expect "doctor shows the clients left out" 0 "$TS" doctor --no-start
+has "$out" "antigravity not chosen" "antigravity not chosen"
+echo "clients: [codex" > "$TOOLSHED_HOME/config.yaml"
+expect "a broken choice stops install" 1 "$TS" install pick -y
+has "$out" "config.yaml" "error names the file"
+expect "clients replaces a broken file" 0 "$TS" clients claude codex antigravity
+expect "remove pick" 0 "$TS" remove pick
+
 section "broken registry"
 echo "tools: [{id: x, comand: y}]" > "$TOOLSHED_HOME/registry.yaml"
 expect "commands fail loudly on a broken registry" 1 "$TS" list

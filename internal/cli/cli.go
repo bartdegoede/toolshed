@@ -43,13 +43,14 @@ func init() {
 	commands = []command{
 		{"add", "<id> [flags] [-- command args...]", "Add a tool to your toolshed", runAdd},
 		{"import", "[<name>...] [-y] [--dry-run] [--no-install]", "Adopt the servers your clients already have", runImport},
-		{"install", "<id>... [--project] [--client c] [--set K=V] [-y]", "Install tools into Claude Code / Codex", runInstall},
-		{"uninstall", "<id>... [--purge]", "Remove tools from Claude Code / Codex", runUninstall},
+		{"install", "<id>... [--project] [--client c] [--set K=V] [-y]", "Install tools into your coding agents", runInstall},
+		{"uninstall", "<id>... [--purge]", "Remove tools from your coding agents", runUninstall},
 		{"update", "[<id>...] [-y]", "Re-register installed tools with current settings", runUpdate},
 		{"upgrade", "[<id>...] [--dry-run]", "Move npx/uvx tools to the newest release of their package", runUpgrade},
 		{"approve", "<id> [-y]", "Review and allow a tool your agent added", runApprove},
 		{"secret", "set <id> [KEY]", "Replace a tool's secret (e.g. a rotated token)", runSecret},
 		{"remove", "<id>", "Uninstall a tool and delete it from your toolshed", runRemove},
+		{"clients", "[<name>...]", "Show or choose the clients tools are installed into", runClients},
 		{"list", "[--json]", "Show every tool and where it's installed", runList},
 		{"doctor", "[--no-start] [--json]", "Check that every installed tool works", runDoctor},
 		{"tools", "<id>", "Start a tool's server and list the tools it offers", runTools},
@@ -57,8 +58,8 @@ func init() {
 		{"mcp", "", "Serve toolshed over MCP, so your agent can add tools itself", runMCP},
 		{"validate", "[file]", "Check a registry file", runValidate},
 		{"completion", "bash|zsh|fish", "Print a shell completion script", runCompletion},
-		{"exec", "<id> [--secret KEY=group]... -- <command> [args...]", "Run a server with its secrets (used by Claude/Codex)", runExec},
-		{"headers", "<id> [--secret KEY=group]... [--header 'Name=template']...", "Print a remote tool's auth headers (used by Claude/Codex)", runHeaders},
+		{"exec", "<id> [--secret KEY=group]... -- <command> [args...]", "Run a server with its secrets (used by the clients)", runExec},
+		{"headers", "<id> [--secret KEY=group]... [--header 'Name=template']...", "Print a remote tool's auth headers (used by the clients)", runHeaders},
 		{"__ids", "", "", runIDs},
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/bartdegoede/toolshed/internal/clients/clienttest"
 	"github.com/bartdegoede/toolshed/internal/registry"
 	"github.com/bartdegoede/toolshed/internal/secrets"
+	"github.com/bartdegoede/toolshed/internal/shed"
 )
 
 // These tests drive whole TUI flows with key presses and check what they
@@ -36,6 +37,11 @@ func sandboxTUI(t *testing.T) {
 	t.Setenv("PATH", mocks+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Chdir(home)
 	secrets.UseMockForTest(true)
+	// Every client chosen, as if asked before: TestTUIFirstInstallAsks
+	// takes this away to see the question.
+	if err := shed.SaveClients(clients.All); err != nil {
+		t.Fatal(err)
+	}
 	oldSpin, oldFlash := spinnerInterval, flashDuration
 	spinnerInterval, flashDuration = time.Millisecond, time.Millisecond
 	t.Cleanup(func() { spinnerInterval, flashDuration = oldSpin, oldFlash })
@@ -286,5 +292,50 @@ func TestNoFormBindsToModelFields(t *testing.T) {
 				t.Errorf("%s:%d binds a form to a field of the model: %s", f, i+1, strings.TrimSpace(line))
 			}
 		}
+	}
+}
+
+// The first install asks which clients to use (all on PATH ticked), saves
+// the answer and installs into those only.
+func TestTUIFirstInstallAsks(t *testing.T) {
+	sandboxTUI(t)
+	_ = os.Remove(shed.SettingsPath())
+	_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh"})
+	m := start(t)
+	m = press(t, m, key('i'))
+	if mm := m.(model); mm.mode != modeForm || mm.formKind != formClients {
+		t.Fatalf("expected the clients question first, got mode %v form %v", mm.mode, mm.formKind)
+	}
+	m = press(t, m, down, down, space, enter) // untick Antigravity
+	want := []string{clients.Claude, clients.Codex}
+	if got, chosen := shed.DefaultClients(); !chosen || !slices.Equal(got, want) {
+		t.Fatalf("saved %v (%v), want %v", got, chosen, want)
+	}
+	if inst := clients.Detect()["hi"]; inst == nil || !slices.Equal(inst.Clients(), want) {
+		t.Fatalf("installed into %+v, want %v", inst, want)
+	}
+	if v := m.View().Content; !strings.Contains(v, "not chosen (c to change)") {
+		t.Fatalf("Antigravity should show as not chosen:\n%s", v)
+	}
+}
+
+// c changes the choice; tools already installed stay where they are.
+func TestTUIChangeClients(t *testing.T) {
+	sandboxTUI(t)
+	_ = registry.AddUserEntry(registry.Entry{ID: "old", Command: "sh"})
+	_ = registry.AddUserEntry(registry.Entry{ID: "new", Command: "sh"})
+	registerBoth(t, "old", clients.Config{Type: "stdio", Command: "sh"})
+	m := start(t)
+	m = press(t, m, key('c'), space, enter) // untick Claude Code
+	want := []string{clients.Codex, clients.Antigravity}
+	if got, _ := shed.DefaultClients(); !slices.Equal(got, want) {
+		t.Fatalf("saved %v, want %v", got, want)
+	}
+	if got := clients.Detect()["old"].Clients(); !slices.Equal(got, clients.All) {
+		t.Fatalf("changing the choice touched an installed tool: %v", got)
+	}
+	press(t, m, down, key('i'))
+	if inst := clients.Detect()["new"]; inst == nil || !slices.Equal(inst.Clients(), want) {
+		t.Fatalf("installed into %+v, want %v", inst, want)
 	}
 }

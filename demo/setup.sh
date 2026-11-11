@@ -42,6 +42,7 @@ echo '{"enableAllProjectMcpServers": true}' > .claude/settings.local.json
 
 export PATH="$sandbox/bin:$PATH"
 export TOOLSHED_HOME="$sandbox/home"
+toolshed clients claude codex >/dev/null   # chosen already: the tape doesn't show the first-install question
 toolshed install toolshed --project -y >/dev/null   # let Claude manage its own tools
 export PS1='\[\e[38;5;214m\]acme-api\[\e[0m\] \[\e[38;5;245m\]❯\[\e[0m\] '
 # Only the sandbox's servers, not the recorder's personal ones.

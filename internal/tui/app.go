@@ -47,6 +47,7 @@ const (
 	formApprove
 	formReview // an installed tool changed in the registry: accept before re-installing
 	formImport // which values of a server being imported are secrets
+	formClients
 )
 
 type probeState struct {
@@ -61,6 +62,7 @@ type model struct {
 	reg     *registry.Registry
 	inst    map[string]*clients.Installation
 	avail   []string
+	unused  []string // clients on PATH left out of your choice (shed.Unused)
 	cursor  int
 	width   int
 	height  int
@@ -80,6 +82,8 @@ type model struct {
 	// update, so a form bound to a field of the model would write into a
 	// copy that's already been thrown away.
 	confirm *bool
+	choice  *[]string // the clients form's answer
+	then    string    // a tool to install once the clients form is done
 
 	imports    []shed.Import // servers the clients have that aren't in the toolshed
 	impCursor  int
@@ -90,10 +94,11 @@ type model struct {
 // ── messages ──
 
 type loadedMsg struct {
-	reg   *registry.Registry
-	inst  map[string]*clients.Installation
-	avail []string
-	err   error
+	reg    *registry.Registry
+	inst   map[string]*clients.Installation
+	avail  []string
+	unused []string
+	err    error
 }
 type detectedMsg struct {
 	inst map[string]*clients.Installation
@@ -120,7 +125,7 @@ func (m model) Init() tea.Cmd {
 
 func load() tea.Msg {
 	reg, err := registry.Load()
-	return loadedMsg{reg: reg, err: err, inst: clients.Detect(), avail: clients.AvailableClients()}
+	return loadedMsg{reg: reg, err: err, inst: clients.Detect(), avail: clients.AvailableClients(), unused: shed.Unused()}
 }
 
 func detect() tea.Msg { return detectedMsg{clients.Detect()} }
@@ -182,7 +187,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case len(msg.avail) == 0:
 			m.mode, m.fatal = modeFatal, noClientsText
 		default:
-			m.mode, m.reg, m.inst, m.avail = modeBrowse, msg.reg, msg.inst, msg.avail
+			m.mode, m.reg, m.inst, m.avail, m.unused = modeBrowse, msg.reg, msg.inst, msg.avail, msg.unused
 			m.cursor = max(0, min(m.cursor, len(m.reg.Entries)-1))
 			m.refreshImports()
 			if m.inImport {
@@ -263,6 +268,8 @@ func (m model) handleKey(key string) (tea.Model, tea.Cmd) {
 		m.cursor = len(m.reg.Entries) - 1
 	case "m":
 		return m.openImports()
+	case "c":
+		return m.openClients("")
 	case "a":
 		m.addSpec = &addSpec{}
 		return m.openForm(formAdd, newAddForm(m.addSpec, m.reg, m.detailWidth()))
@@ -346,6 +353,17 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 	switch m.formKind {
 	case formImport:
 		return m.submitImport()
+	case formClients:
+		if err := shed.SaveClients(*m.choice); err != nil {
+			return m, m.setFlash("✗ "+oneLine(err.Error()), false)
+		}
+		chosen, _ := shed.DefaultClients()
+		m.unused = shed.Unused()
+		if e := m.reg.Get(m.then); e != nil {
+			m.then = ""
+			return m.openInstall(e)
+		}
+		return m, m.setFlash("✓ Tools go into "+clients.LabelList(chosen, "and"), true)
 	case formAdd:
 		entry, err := m.addSpec.toEntry()
 		pinned := ""
@@ -423,6 +441,9 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 // openInstall asks for the tool's inputs, or installs straight away when it
 // has none.
 func (m model) openInstall(e *registry.Entry) (tea.Model, tea.Cmd) {
+	if shed.NeedsClientChoice() {
+		return m.openClients(e.ID) // once, before the first install
+	}
 	vals, _ := shed.Resolve(e, m.inst[e.ID], nil)
 	form, st := newInstallForm(e, vals, m.inst[e.ID], m.detailWidth())
 	m.install = st
@@ -493,3 +514,10 @@ toolshed installs tools into them, so you need at least one:
   Claude Code   curl -fsSL https://claude.ai/install.sh | bash
   Codex         npm install -g @openai/codex
   Antigravity   curl -fsSL https://antigravity.google/cli/install.sh | bash`
+
+// openClients asks which clients tools are installed into, then installs
+// then (a tool ID), if any.
+func (m model) openClients(then string) (tea.Model, tea.Cmd) {
+	m.choice, m.then = new([]string), then
+	return m.openForm(formClients, newClientsForm(m.choice, m.avail, m.detailWidth()))
+}
