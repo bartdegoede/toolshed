@@ -1,7 +1,7 @@
 # Plan: more clients (Gemini CLI, Cursor, VS Code, opencode)
 
-Status: plan, not started. Written 2026-11-09 so the work can be picked up
-later. Nothing here is implemented.
+Status: in progress. Written 2026-11-09; updated 2026-11-11 with what
+Phase 0 found and what's done (see "Progress" and "Verified" below).
 
 toolshed supports Claude Code and Codex. This plan adds Gemini CLI, Cursor,
 VS Code (GitHub Copilot) and opencode as the first wave, and leaves room for
@@ -11,6 +11,51 @@ The rule from AGENTS.md applies throughout: a client isn't supported until it
 works as well as Claude Code and Codex, verified against the real client, not
 against our idea of it. The Codex work showed why: the CLI we trusted reset a
 server's settings on every update, and our mock didn't.
+
+## Progress (2026-11-11)
+
+- Phase 1, the adapter refactor: done (#21). Along the way: reinstalling
+  keeps a tool where it is (#23), changing scope moves it instead of
+  leaving a hidden copy (#24), and toolshed reads each client's scopes in
+  the order the client uses them, with `doctor` pointing out second copies
+  (#25).
+- Phase 0 for Gemini CLI and Antigravity CLI: done, below.
+- **Order changed: Antigravity CLI before Gemini CLI.** Gemini CLI sign-in
+  for personal Google accounts was turned off in June 2026 (third-party
+  reports; API keys and enterprise licences still work), and Antigravity CLI
+  (`agy`) is its successor. Gemini CLI waits.
+- Decided: a "This repo only" install skips a client that has no project
+  scope (Antigravity) with a note, rather than installing it for every
+  project.
+
+## Verified (Phase 0, 2026-11-11, against the real CLIs in a throwaway HOME)
+
+**Antigravity CLI** (`agy` 1.5.5):
+
+- One config, user scope only: `~/.gemini/config/mcp_config.json`
+  (`mcpServers`). No project scope; plugins bring their own servers.
+- Local: `command`, `args`, `env`. Remote: `url`, or the legacy `serverUrl`,
+  which is what `agy mcp add` still writes; both are read. Static `headers`.
+  `agy mcp add` also writes `"disabled": false`.
+- No headers helper: remote servers that need a token are skipped (open
+  question 2, option d).
+- `agy mcp add` on an existing server replaces its entry and drops keys it
+  doesn't set (`timeoutSeconds`, `enabledTools`): write the file directly,
+  like Codex. It keeps other top-level keys.
+- The changelog says the runtime accepts comments and trailing commas, but
+  `agy mcp list/add` reject them: write plain JSON, keep what's there.
+- `agy mcp list` is instant and doesn't connect to servers: good for
+  contract tests. No login needed for any of this.
+
+**Gemini CLI** (0.68.0), corrections to the table below:
+
+- Remote: `url` plus `"type": "http"` or `"sse"`, not `httpUrl` (still read).
+- JSON with comments yes, trailing commas no. Its own `mcp add` keeps
+  comments but re-indents the file.
+- A project's server wins over the user's with the same name.
+- Workspace trust: in an untrusted folder Gemini disables *all* MCP servers,
+  user-level ones too, and `gemini mcp add -s project` refuses to write.
+- `gemini mcp list` connects to every server (slow).
 
 ## What each client needs (from research, all to be verified)
 
