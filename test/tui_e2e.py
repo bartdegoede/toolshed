@@ -213,6 +213,7 @@ else:
 tui.press("down", "d", "left", "enter")
 wait_for("delete: gone from the registry", lambda: "id: bye" not in registry())
 wait_for("delete: uninstalled from Claude Code", lambda: "bye" not in claude_servers())
+wait_for("delete: uninstalled from Antigravity", lambda: not agy_has("bye"))
 
 # Import the hand-made server, unticking API_TOKEN (ticked by its name).
 tui.press("m")

@@ -93,7 +93,9 @@ func TestReinstallUpdatesACopyOutsideTheChoice(t *testing.T) {
 	}
 	_ = SaveClients([]string{clients.Claude})
 	e.Args = []string{"-c", "new"}
-	res, err := Install(e, Values{}, KeepScopes(clients.Detect()["hi"]))
+	opts := KeepScopes(clients.Detect()["hi"])
+	opts.Clients = nil // as the front ends do: where it is, plus the chosen clients
+	res, err := Install(e, Values{}, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

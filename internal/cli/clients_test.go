@@ -148,3 +148,26 @@ func TestDoctorAndTheChosenClients(t *testing.T) {
 		t.Fatalf("saved %v", got)
 	}
 }
+
+// Reinstalling a changed tool updates its copy in a client you've since left
+// out, instead of leaving it stale there.
+func TestReinstallUpdatesACopyOutsideTheChoice(t *testing.T) {
+	sandbox(t)
+	_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh", Args: []string{"-c", "old"}})
+	if err := runInstall([]string{"hi", "-y"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := captureStdout(t, func() error { return runClients([]string{"claude"}) }); err != nil {
+		t.Fatal(err)
+	}
+	_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh", Args: []string{"-c", "new"}})
+	if err := runInstall([]string{"hi", "-y"}); err != nil {
+		t.Fatal(err)
+	}
+	inst := clients.Detect()["hi"]
+	for _, c := range clients.All {
+		if got := inst.Regs[c].Config.Args; !slices.Equal(got, []string{"-c", "new"}) {
+			t.Errorf("%s still runs %v", c, got)
+		}
+	}
+}
