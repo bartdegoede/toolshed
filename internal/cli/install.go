@@ -176,12 +176,23 @@ func prompt(e *registry.Entry, in registry.Input) (string, error) {
 func runUninstall(args []string) error {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	purge := fs.Bool("purge", false, "also delete the tool's secrets from the keyring")
+	client := fs.String("client", "", "only from "+clients.Names("or"))
+	scope := fs.String("scope", "", "only the registration at user, local or project scope (also one the client ignores here; see doctor)")
 	ids, err := parse(fs, args)
 	if err != nil {
 		return err
 	}
 	if len(ids) == 0 {
 		return usagef("uninstall needs at least one id")
+	}
+	if *client != "" && clients.Get(*client) == nil {
+		return usagef("--client must be %s", clients.Names("or"))
+	}
+	if *scope != "" && *scope != "user" && *scope != "local" && *scope != "project" {
+		return usagef("--scope must be user, local or project")
+	}
+	if *purge && (*client != "" || *scope != "") {
+		return usagef("--purge removes the tool's secrets, so it only goes with a full uninstall (no --client or --scope)")
 	}
 	reg, err := loadRegistry()
 	if err != nil {
@@ -193,6 +204,20 @@ func runUninstall(args []string) error {
 		e, err := lookup(reg, id)
 		if err != nil {
 			errs = append(errs, err)
+			continue
+		}
+		if *client != "" || *scope != "" {
+			removed, err := shed.UninstallCopy(e, installed[id], *client, *scope)
+			if len(removed) > 0 {
+				where := strings.Join(removed, ", ")
+				if *scope != "" {
+					where += " (" + *scope + " scope)"
+				}
+				fmt.Printf("%s Removed %s from %s\n", green("✓"), bold(id), where)
+			}
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", id, err))
+			}
 			continue
 		}
 		if installed[id] == nil && !*purge {

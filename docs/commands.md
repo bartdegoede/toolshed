@@ -70,6 +70,7 @@ would do, `--no-install` only adds them to your registry. See
 | Command | |
 | --- | --- |
 | `toolshed uninstall <id>... [--purge]` | remove from Claude Code and Codex; `--purge` also deletes its secrets |
+| `toolshed uninstall <id> --client <client> --scope <scope>` | remove one copy: from one client, at one scope, also one the client ignores here (see [Doctor](doctor.md)) |
 | `toolshed remove <id>` | uninstall and delete from your registry |
 
 ## Everything else

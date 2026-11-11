@@ -39,8 +39,12 @@ func (codexClient) Notes(scope string) []string {
 // detect reads the [mcp_servers.<name>] tables. Names with underscores are
 // folded into their hyphen form when nothing else in the file has that name,
 // because toolshed used to register "my-tool" as "my_tool" in Codex.
-func (codexClient) detect(root string) map[string]Registration {
-	found := map[string]Registration{}
+//
+// The order is Codex's when a name is in both files, checked against the
+// real CLI: the project's wins once the project is trusted (until then Codex
+// ignores that file), the user's otherwise.
+func (codexClient) detect(root string) []found {
+	var out []found
 	read := func(path, scope string) {
 		var f struct {
 			MCPServers map[string]codexTOMLServer `toml:"mcp_servers"`
@@ -55,14 +59,21 @@ func (codexClient) detect(root string) map[string]Registration {
 					name = folded
 				}
 			}
-			found[name] = Registration{Scope: scope, Key: key, Config: s.config()}
+			out = append(out, found{name, Registration{Scope: scope, Key: key, Config: s.config()}})
 		}
 	}
-	read(filepath.Join(CodexHome(), "config.toml"), "user")
-	if root != "" {
-		read(filepath.Join(root, ".codex", "config.toml"), "project")
+	user, project := filepath.Join(CodexHome(), "config.toml"), filepath.Join(root, ".codex", "config.toml")
+	switch {
+	case root == "":
+		read(user, "user")
+	case codexTrusts():
+		read(user, "user")
+		read(project, "project")
+	default:
+		read(project, "project")
+		read(user, "user")
 	}
-	return found
+	return out
 }
 
 // register edits the server in place. Moving it to another scope copies its

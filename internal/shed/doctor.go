@@ -62,6 +62,7 @@ type DoctorOptions struct {
 //   - a `toolshed exec` wrapper points at a toolshed binary that exists;
 //   - the command is on PATH, and its secrets are in the keyring;
 //   - npx/uvx packages are pinned;
+//   - no client has a second copy at another scope;
 //   - with opts.Start, the server starts and lists its tools.
 //
 // Tools whose entry changed aren't started: that would run a command the
@@ -108,6 +109,20 @@ func check(e *registry.Entry, inst *clients.Installation) Health {
 	h := Health{ID: e.ID, Clients: inst.Clients(), Tools: -1}
 	add := func(level, text, fix string) { h.Findings = append(h.Findings, Finding{level, text, fix}) }
 
+	// A second copy in the same client, at a scope it doesn't use here: left
+	// behind by an older toolshed, or a repository's shared config next to
+	// your own. Either way one of them is ignored, so say which.
+	for _, c := range inst.Clients() {
+		used := inst.Regs[c]
+		for _, other := range inst.Hidden[c] {
+			differs := ""
+			if !sameServer(used.Config, other.Config) {
+				differs = " (running something else)"
+			}
+			text := fmt.Sprintf("%s also has it at %s scope%s, but uses the %s one here", clients.Label(c), other.Scope, differs, used.Scope)
+			add(Warning, text, fmt.Sprintf("toolshed uninstall %s --client %s --scope %s", e.ID, c, other.Scope))
+		}
+	}
 	if changes := Changes(e, inst); len(changes) > 0 {
 		for _, c := range changes {
 			add(Error, "changed in the registry since it was installed: "+c, "toolshed update "+e.ID)

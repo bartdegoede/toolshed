@@ -31,9 +31,11 @@ type Client interface {
 	// Notes are things to know after registering a server at scope.
 	Notes(scope string) []string
 
-	// detect returns the servers in the client's config files, by name.
-	// root is the git repository root, or "".
-	detect(root string) map[string]Registration
+	// detect returns the servers in the client's config files. A name at
+	// several scopes comes several times, in the order the client resolves
+	// it: the last one is the one it uses. root is the git repository root,
+	// or "".
+	detect(root string) []found
 	// register adds or replaces a server; prev is its current registration
 	// in this client, if any.
 	register(name string, cfg Config, scope string, prev *Registration) error
@@ -124,10 +126,35 @@ type Registration struct {
 	raw map[string]json.RawMessage // the client's own copy, for keys toolshed doesn't model (Claude)
 }
 
+// found is one registration detect read.
+type found struct {
+	name string
+	reg  Registration
+}
+
 // Installation is where one server name is registered.
 type Installation struct {
 	Name string
-	Regs map[string]Registration // by client name
+	Regs map[string]Registration // by client name: the registration the client uses here
+
+	// Hidden are other registrations of the name in the same client, at
+	// scopes that client doesn't use here because Regs's one wins: a second
+	// copy, left behind or deliberate (a repository's shared config, say).
+	Hidden map[string][]Registration
+}
+
+// At returns the registration in client at scope, whether the client uses
+// it here or not.
+func (i Installation) At(client, scope string) (Registration, bool) {
+	if r, ok := i.Regs[client]; ok && r.Scope == scope {
+		return r, true
+	}
+	for _, r := range i.Hidden[client] {
+		if r.Scope == scope {
+			return r, true
+		}
+	}
+	return Registration{}, false
 }
 
 // Clients returns the clients this server is registered in, in display order.
@@ -202,13 +229,19 @@ func Detect() map[string]*Installation {
 	found := map[string]*Installation{}
 	root := GitRoot()
 	for _, c := range adapters {
-		for name, r := range c.detect(root) {
-			inst := found[name]
+		for _, f := range c.detect(root) {
+			inst := found[f.name]
 			if inst == nil {
-				inst = &Installation{Name: name, Regs: map[string]Registration{}}
-				found[name] = inst
+				inst = &Installation{Name: f.name, Regs: map[string]Registration{}}
+				found[f.name] = inst
 			}
-			inst.Regs[c.Name()] = r
+			if prev, ok := inst.Regs[c.Name()]; ok {
+				if inst.Hidden == nil {
+					inst.Hidden = map[string][]Registration{}
+				}
+				inst.Hidden[c.Name()] = append(inst.Hidden[c.Name()], prev)
+			}
+			inst.Regs[c.Name()] = f.reg
 		}
 	}
 	return found
@@ -218,44 +251,57 @@ func Detect() map[string]*Installation {
 // settings toolshed doesn't manage. scope is one the client has (see
 // Client.Scope).
 //
-// A server lives at one scope per client: registering it at another scope
-// moves it, settings and all, and removes the old registration once the new
-// one is in place. Otherwise the old one would linger where Detect, which
-// reports one scope per client, doesn't show it and uninstall doesn't reach.
+// Registering it at another scope than the one the client uses moves it,
+// settings and all, and removes that registration once the new one is in
+// place, so it doesn't linger as a hidden second copy. Other copies the
+// client already hides are left alone (doctor reports them).
 func Register(client, name string, cfg Config, scope string) error {
 	c := Get(client)
 	if c == nil {
 		return fmt.Errorf("unknown client %q", client)
 	}
-	prev := current(client, name)
+	scope = c.Scope(scope)
+	here, used := registration(client, name, scope)
+	prev := here // a copy at this scope already: update that one
+	if prev == nil {
+		prev = used
+	}
 	if err := c.register(name, cfg, scope, prev); err != nil {
 		return err
 	}
-	if prev != nil && prev.Scope != c.Scope(scope) {
-		if err := c.unregister(name, prev.Scope, prev); err != nil {
-			return fmt.Errorf("registered at %s scope, but removing the %s one failed: %w", c.Scope(scope), prev.Scope, err)
+	if used != nil && used.Scope != scope {
+		if err := c.unregister(name, used.Scope, used); err != nil {
+			return fmt.Errorf("registered at %s scope, but removing the %s one failed: %w", scope, used.Scope, err)
 		}
 	}
 	return nil
 }
 
-// Unregister removes a server from one client at a scope.
+// Unregister removes a server from one client at a scope, whether the
+// client uses that registration here or not.
 func Unregister(client, name, scope string) error {
 	c := Get(client)
 	if c == nil {
 		return fmt.Errorf("unknown client %q", client)
 	}
-	return c.unregister(name, scope, current(client, name))
+	here, _ := registration(client, name, scope)
+	return c.unregister(name, scope, here)
 }
 
-// current is the server's registration in client, or nil.
-func current(client, name string) *Registration {
-	if inst := Detect()[name]; inst != nil {
-		if r, ok := inst.Regs[client]; ok {
-			return &r
-		}
+// registration returns the server's registration in client at scope, and
+// the one the client uses here; either may be nil.
+func registration(client, name, scope string) (here, used *Registration) {
+	inst := Detect()[name]
+	if inst == nil {
+		return nil, nil
 	}
-	return nil
+	if r, ok := inst.At(client, scope); ok {
+		here = &r
+	}
+	if r, ok := inst.Regs[client]; ok {
+		used = &r
+	}
+	return here, used
 }
 
 // GitRoot returns the current git repository root, or "".
