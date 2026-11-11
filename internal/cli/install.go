@@ -20,7 +20,7 @@ import (
 func runInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	project := fs.Bool("project", false, "install for this repository only (.mcp.json for Claude Code, .codex/config.toml for Codex)")
-	client := fs.String("client", "", "only install into claude or codex")
+	client := fs.String("client", "", "only install into "+clients.Names("or"))
 	yes := fs.Bool("y", false, "never prompt; take values from --set and the environment")
 	var set multi
 	fs.Var(&set, "set", "input value KEY=VALUE (repeatable)")
@@ -43,8 +43,8 @@ func runInstall(args []string) error {
 		opts.Scope = "project"
 	}
 	if *client != "" {
-		if *client != clients.Claude && *client != clients.Codex {
-			return usagef("--client must be claude or codex")
+		if clients.Get(*client) == nil {
+			return usagef("--client must be %s", clients.Names("or"))
 		}
 		opts.Clients = []string{*client}
 	}

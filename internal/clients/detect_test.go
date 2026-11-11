@@ -34,15 +34,18 @@ approval = "never"
 `), 0o644)
 
 	got := Detect()
-	if h := got["hello"]; h == nil || h.ClaudeScope != "user" || !h.Codex {
+	if h := got["hello"]; h == nil || h.Scope(Claude) != "user" || !h.Has(Codex) {
 		t.Fatalf("hello should be in both clients: %+v", h)
 	}
-	if d := got["docs"]; d == nil || d.Codex || d.Config.Type != "http" {
+	if d := got["docs"]; d == nil || d.Has(Codex) || d.Config().Type != "http" {
 		t.Fatalf("docs should be claude-only http: %+v", d)
 	}
 	m := got["my-tool"]
-	if m == nil || !m.Codex || m.Config.Command != "my-tool" || m.Config.Env["TOKEN"] != "x" {
+	if m == nil || !m.Has(Codex) || m.Config().Command != "my-tool" || m.Config().Env["TOKEN"] != "x" {
 		t.Fatalf("codex underscore name should fold to my-tool with its config: %+v", m)
+	}
+	if m.Regs[Codex].Key != "my_tool" {
+		t.Fatalf("the folded name must remember its key in config.toml, got %q", m.Regs[Codex].Key)
 	}
 	if len(got) != 3 {
 		t.Fatalf("subtables must not create ghost entries, got %d: %v", len(got), got)

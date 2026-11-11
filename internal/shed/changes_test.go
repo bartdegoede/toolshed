@@ -16,9 +16,7 @@ func TestChanges(t *testing.T) {
 	wrapped := clients.Config{Type: "stdio", Command: "/opt/homebrew/opt/toolshed/bin/toolshed",
 		Args: []string{"exec", "jira", "--secret", "TOKEN=jira", "--", "jira-mcp", "--site", "acme"},
 		Env:  map[string]string{"MODE": "ro", "REGION": "eu"}}
-	claude := func(cfg clients.Config) *clients.Installation {
-		return &clients.Installation{ClaudeScope: "user", Config: cfg}
-	}
+	claude := inClaude
 
 	if got := Changes(e, claude(wrapped)); len(got) != 0 {
 		t.Fatalf("same entry should have no changes, got %v", got)
@@ -59,12 +57,12 @@ func TestChanges(t *testing.T) {
 func TestChangesComparesEveryClientOnce(t *testing.T) {
 	e := &registry.Entry{ID: "x", Command: "new"}
 	old := clients.Config{Type: "stdio", Command: "old"}
-	got := Changes(e, &clients.Installation{ClaudeScope: "user", Config: old, Codex: true, CodexConfig: old})
+	got := Changes(e, inBoth(old, old))
 	if len(got) != 1 {
 		t.Fatalf("same change in both clients should be listed once, got %v", got)
 	}
 	// Only Codex out of date.
-	got = Changes(e, &clients.Installation{ClaudeScope: "user", Config: clients.Config{Command: "new"}, Codex: true, CodexConfig: old})
+	got = Changes(e, inBoth(clients.Config{Command: "new"}, old))
 	if len(got) != 1 {
 		t.Fatalf("expected Codex's change, got %v", got)
 	}
@@ -72,7 +70,7 @@ func TestChangesComparesEveryClientOnce(t *testing.T) {
 
 func TestRemoteChanges(t *testing.T) {
 	e := &registry.Entry{ID: "gh", URL: "https://a.example/mcp", HeaderCmd: "gh-token"}
-	inst := &clients.Installation{ClaudeScope: "user", Config: clients.Config{Type: "http", URL: "https://a.example/mcp", HeadersHelper: "gh-token"}}
+	inst := inClaude(clients.Config{Type: "http", URL: "https://a.example/mcp", HeadersHelper: "gh-token"})
 	if got := Changes(e, inst); len(got) != 0 {
 		t.Fatalf("no change expected, got %v", got)
 	}

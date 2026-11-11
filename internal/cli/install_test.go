@@ -36,7 +36,7 @@ func TestUpdateKeepsLocalScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst := clients.Detect()["hello"]
-	if inst == nil || inst.ClaudeScope != "local" {
+	if inst == nil || inst.Scope(clients.Claude) != "local" {
 		t.Fatalf("expected hello to stay local, got %+v", inst)
 	}
 	data, _ := os.ReadFile(filepath.Join(home, ".claude.json"))

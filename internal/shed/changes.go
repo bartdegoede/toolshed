@@ -28,7 +28,7 @@ func Changes(e *registry.Entry, inst *clients.Installation) []string {
 		return nil
 	}
 	var out []string
-	for _, cfg := range registrations(inst) {
+	for _, cfg := range inst.Configs() {
 		for _, c := range changes(e, cfg) {
 			if !slices.Contains(out, c) {
 				out = append(out, c)

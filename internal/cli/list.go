@@ -51,7 +51,7 @@ func runList(args []string) error {
 	for _, e := range reg.Entries {
 		r := listRow{ID: e.ID, Name: e.DisplayName(), Kind: kind(e), Source: e.Source, Clients: []string{}}
 		if inst := installed[e.ID]; inst != nil {
-			r.Clients, r.Scope = inst.Clients(), inst.ClaudeScope
+			r.Clients, r.Scope = inst.Clients(), inst.Scope(clients.Claude)
 		}
 		rows = append(rows, r)
 	}

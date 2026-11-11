@@ -37,7 +37,7 @@ func TestResolvePrecedence(t *testing.T) {
 	}
 
 	_ = secrets.Set("demo", "TOKEN", "from-keyring")
-	inst := &clients.Installation{Config: clients.Config{Env: map[string]string{"REGION": "us"}}}
+	inst := inClaude(clients.Config{Env: map[string]string{"REGION": "us"}})
 	vals, missing = Resolve(e, inst, Values{"NICKNAME": "nick"})
 	if len(missing) != 0 || vals["TOKEN"] != "from-keyring" || vals["REGION"] != "us" || vals["NICKNAME"] != "nick" {
 		t.Fatalf("unexpected resolve: %v missing=%v", vals, missing)

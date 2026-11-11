@@ -45,14 +45,14 @@ func TestHeadersHelperRoundTrip(t *testing.T) {
 	if headers["Authorization"] != "Bearer s3cret" || headers["X-Team"] != "core it's" {
 		t.Fatalf("headers: %v", headers)
 	}
-	if vals, _ := Resolve(e, &clients.Installation{ClaudeScope: "user", Config: cfg}, nil); vals["TEAM"] != "core it's" || vals["GH_TOKEN"] != "s3cret" {
+	if vals, _ := Resolve(e, inClaude(cfg), nil); vals["TEAM"] != "core it's" || vals["GH_TOKEN"] != "s3cret" {
 		t.Fatalf("Resolve should read back an installed remote tool's values: %v", vals)
 	}
-	if got := Changes(e, &clients.Installation{ClaudeScope: "user", Config: cfg}); len(got) != 0 {
+	if got := Changes(e, inClaude(cfg)); len(got) != 0 {
 		t.Fatalf("unchanged entry reported as changed: %v", got)
 	}
 	e.Headers["Authorization"] = "Token ${GH_TOKEN}"
-	if got := Changes(e, &clients.Installation{ClaudeScope: "user", Config: cfg}); len(got) != 1 || !strings.Contains(got[0], "Token ${GH_TOKEN}") {
+	if got := Changes(e, inClaude(cfg)); len(got) != 1 || !strings.Contains(got[0], "Token ${GH_TOKEN}") {
 		t.Fatalf("header change not reported: %v", got)
 	}
 }
@@ -92,8 +92,8 @@ func TestShellSplit(t *testing.T) {
 func TestImportStaticHeaders(t *testing.T) {
 	reg := &registry.Registry{}
 	installed := map[string]*clients.Installation{
-		"hosted": {ClaudeScope: "user", Config: clients.Config{Type: "http", URL: "https://h.example/mcp",
-			Headers: map[string]string{"Authorization": "Bearer ghp_abc", "X-Team": "core"}}},
+		"hosted": inClaude(clients.Config{Type: "http", URL: "https://h.example/mcp",
+			Headers: map[string]string{"Authorization": "Bearer ghp_abc", "X-Team": "core"}}),
 	}
 	ims := Imports(reg, installed)
 	if len(ims) != 1 || ims[0].Skip != "" {

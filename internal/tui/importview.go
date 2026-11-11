@@ -169,7 +169,7 @@ func (m model) renderImportList() string {
 		im := m.imports[i]
 		var dots []string
 		for _, c := range clients.All {
-			if contains(im.Inst.Clients(), c) {
+			if im.Inst.Has(c) {
 				dots = append(dots, clientStyle(c).Render("●"))
 			} else {
 				dots = append(dots, faintStyle.Render("○"))
@@ -210,8 +210,7 @@ func (m model) renderImportDetail() string {
 
 	b.WriteString(labelStyle.Render("REGISTERED IN") + "\n")
 	for _, c := range im.Inst.Clients() {
-		label := map[string]string{clients.Claude: "Claude Code", clients.Codex: "Codex"}[c]
-		fmt.Fprintf(&b, "  %s %-12s %s\n", clientStyle(c).Render("●"), label, faintStyle.Render(im.Inst.Scope(c)))
+		fmt.Fprintf(&b, "  %s %-12s %s\n", clientStyle(c).Render("●"), clients.Label(c), faintStyle.Render(im.Inst.Scope(c)))
 	}
 	b.WriteString("\n" + labelStyle.Render("RUNS") + "\n")
 	b.WriteString("  " + codeStyle.Render(truncate(im.Entry.CommandLine(), w-2)) + "\n")

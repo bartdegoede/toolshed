@@ -45,7 +45,7 @@ func TestImportMovesSecretsToTheKeyring(t *testing.T) {
 		t.Fatal("the old name should be gone")
 	}
 	got := installed["my-tool"]
-	if got == nil || !slices.Contains(got.Config.Args, "exec") || got.Config.Env["API_TOKEN"] != "" || got.Config.Env["LOG_LEVEL"] != "debug" {
+	if got == nil || !slices.Contains(got.Config().Args, "exec") || got.Config().Env["API_TOKEN"] != "" || got.Config().Env["LOG_LEVEL"] != "debug" {
 		t.Fatalf("should be re-registered through toolshed exec without the token: %+v", got)
 	}
 	if err := runImport([]string{"-y"}); err != nil {

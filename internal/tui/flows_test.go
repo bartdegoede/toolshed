@@ -126,13 +126,13 @@ func TestTUIReviewChange(t *testing.T) {
 	registerBoth(t, "hi", clients.Config{Type: "stdio", Command: "sh"})
 	m := start(t)
 	m = press(t, m, key('i'), enter) // No: keep what's installed
-	if got := clients.Detect()["hi"].Config.Args; len(got) != 0 {
+	if got := clients.Detect()["hi"].Config().Args; len(got) != 0 {
 		t.Fatalf("No changed the registration: %v", got)
 	}
 	press(t, m, key('i'), left, enter)
 	inst := clients.Detect()["hi"]
-	if !slices.Equal(inst.Config.Args, []string{"-c", "new"}) || !slices.Equal(inst.CodexConfig.Args, []string{"-c", "new"}) {
-		t.Fatalf("Yes didn't install the new version: claude %v, codex %v", inst.Config.Args, inst.CodexConfig.Args)
+	if claude, codex := inst.Regs[clients.Claude].Config.Args, inst.Regs[clients.Codex].Config.Args; !slices.Equal(claude, []string{"-c", "new"}) || !slices.Equal(codex, []string{"-c", "new"}) {
+		t.Fatalf("Yes didn't install the new version: claude %v, codex %v", claude, codex)
 	}
 }
 
@@ -154,7 +154,7 @@ func TestTUIImportUsesTheTicks(t *testing.T) {
 	if v, _ := secrets.Get("byhand", "LEVEL"); v != "debug" {
 		t.Fatalf("LEVEL should be in the keyring, got %q", v)
 	}
-	env := clients.Detect()["byhand"].Config.Env
+	env := clients.Detect()["byhand"].Config().Env
 	if env["API_TOKEN"] != "sk-live-abcdefghijkl" || env["LEVEL"] != "" {
 		t.Fatalf("claude's env should keep API_TOKEN and lose LEVEL: %v", env)
 	}

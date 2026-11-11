@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	toolshed "github.com/bartdegoede/toolshed"
+	"github.com/bartdegoede/toolshed/internal/clients"
 )
 
 // Entry is one tool: an MCP server toolshed can install into Claude Code and
@@ -35,7 +36,7 @@ type Entry struct {
 	Headers     map[string]string `yaml:"headers,omitempty"`        // remote: HTTP headers; ${KEY} is replaced by input KEY
 	Env         map[string]string `yaml:"env,omitempty"`            // fixed environment variables
 	Inputs      []Input           `yaml:"inputs,omitempty"`         // values prompted for at install
-	Clients     []string          `yaml:"clients,omitempty"`        // restrict to "claude" and/or "codex"
+	Clients     []string          `yaml:"clients,omitempty"`        // restrict to these clients (clients.All)
 
 	// Pending marks a tool an agent added through `toolshed mcp`. toolshed
 	// won't start or install it until the user approves it (`toolshed
@@ -346,8 +347,8 @@ func ValidateEntry(e *Entry) error {
 		}
 	}
 	for _, c := range e.Clients {
-		if c != "claude" && c != "codex" {
-			errs = append(errs, fmt.Errorf("%s: unknown client %q (want claude or codex)", where, c))
+		if clients.Get(c) == nil {
+			errs = append(errs, fmt.Errorf("%s: unknown client %q (want %s)", where, c, clients.Names("or")))
 		}
 	}
 	keys := map[string]bool{}

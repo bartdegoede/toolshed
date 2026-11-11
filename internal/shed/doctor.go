@@ -114,7 +114,7 @@ func check(e *registry.Entry, inst *clients.Installation) Health {
 		}
 		return h // the rest describes the new entry, which isn't what's installed
 	}
-	for _, cfg := range registrations(inst) {
+	for _, cfg := range inst.Configs() {
 		self := ""
 		if _, _, wrapped := Unwrap(cfg); wrapped {
 			self = cfg.Command
@@ -151,17 +151,6 @@ func check(e *registry.Entry, inst *clients.Installation) Health {
 	return h
 }
 
-func registrations(inst *clients.Installation) []clients.Config {
-	var cfgs []clients.Config
-	if inst.ClaudeScope != "" {
-		cfgs = append(cfgs, inst.Config)
-	}
-	if inst.Codex {
-		cfgs = append(cfgs, inst.CodexConfig)
-	}
-	return cfgs
-}
-
 // Orphans returns servers registered through `toolshed exec` that are no
 // longer in the registry (deleted or renamed there): they still work, but
 // toolshed can't update or uninstall them by name anymore.
@@ -171,7 +160,7 @@ func Orphans(reg *registry.Registry, installed map[string]*clients.Installation)
 		if reg.Get(name) != nil {
 			continue
 		}
-		for _, cfg := range registrations(inst) {
+		for _, cfg := range inst.Configs() {
 			_, _, wrapped := Unwrap(cfg)
 			_, helper := UnwrapHeaders(cfg.HeadersHelper)
 			if wrapped || helper {

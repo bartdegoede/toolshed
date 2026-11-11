@@ -93,8 +93,8 @@ func runImport(args []string) error {
 
 func importOne(reg *registry.Registry, im *shed.Import, interactive, dry, noInstall bool) (bool, error) {
 	where := strings.Join(im.Clients, ", ")
-	if im.Inst.ClaudeScope != "" && im.Inst.ClaudeScope != "user" {
-		where += " (" + im.Inst.ClaudeScope + ")"
+	if s := im.Inst.Scope(clients.Claude); s != "" && s != "user" {
+		where += " (" + s + ")"
 	}
 	if im.Skip != "" {
 		fmt.Printf("%s %s %s\n", dim("·"), bold(im.Name), dim("skipped: "+im.Skip))
