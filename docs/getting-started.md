@@ -20,7 +20,8 @@ Adding a tool asks what kind it is (an npm or Python package, a command, or a
 remote URL) and what to call it. toolshed then starts it and lists its tools,
 so you know it works before your agent tries it. Installing asks for any
 values the tool needs and where to install it: for every project, or just
-this repository.
+this repository. Installing a tool again starts from where it is now, in
+each client, so accepting the form updates it in place.
 
 ## From the command line
 

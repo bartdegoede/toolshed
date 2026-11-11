@@ -220,6 +220,18 @@ def repo_codex_has(name):
 
 wait_for("this repo: in the repo's .codex/config.toml", lambda: repo_codex_has("cxonly"))
 check("this repo: not in ~/.codex/config.toml", not codex_has("cxonly"))
+
+# Reinstalling it and accepting the default keeps it in the repo, without
+# adding a copy to ~/.codex/config.toml.
+tui.out = b""
+tui.press("i")
+if tui.screen_has("Install for"):
+    tui.press("enter")
+    wait_for("reinstall: done", lambda: "Installed cxonly" in tui.text())
+else:
+    bad("reinstall: the form asks where", tui.text()[-300:])
+check("reinstall: still in the repo's .codex/config.toml", repo_codex_has("cxonly"))
+check("reinstall: no copy in ~/.codex/config.toml", not codex_has("cxonly"))
 check("q quits", tui.quit())
 
 print(f"\n{passed} passed, {failed} failed")

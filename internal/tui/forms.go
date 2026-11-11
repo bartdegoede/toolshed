@@ -138,12 +138,45 @@ func orDash(s string) string {
 // installForm collects input values and scope for an install.
 type installForm struct {
 	values map[string]*string
-	scope  string
+	scope  string // "user", "project", or keepScopes
 }
 
-// newInstallForm returns nil when there's nothing to ask.
-func newInstallForm(e *registry.Entry, vals shed.Values, width int) (*huh.Form, *installForm) {
-	st := &installForm{values: map[string]*string{}, scope: "user"}
+// keepScopes is the scope that reinstalls every client where it is now.
+const keepScopes = ""
+
+// currentScope is how an installed tool is placed: "user" or "project" when
+// every client has it there, else keepScopes (Claude's "local", or a
+// different scope per client). A tool that isn't installed defaults to "user".
+func currentScope(inst *clients.Installation) string {
+	if inst == nil || len(inst.Clients()) == 0 {
+		return "user"
+	}
+	scope := inst.Scope(inst.Clients()[0])
+	for _, c := range inst.Clients() {
+		if inst.Scope(c) != scope {
+			return keepScopes
+		}
+	}
+	if scope != "user" && scope != "project" {
+		return keepScopes
+	}
+	return scope
+}
+
+// placement describes where an installed tool is: "Claude Code: local, Codex: user".
+func placement(inst *clients.Installation) string {
+	var parts []string
+	for _, c := range inst.Clients() {
+		parts = append(parts, clients.Label(c)+": "+inst.Scope(c))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// newInstallForm returns nil when there's nothing to ask. For an installed
+// tool the scope starts where it is now, so accepting the form reinstalls it
+// in place instead of adding a copy at another scope.
+func newInstallForm(e *registry.Entry, vals shed.Values, inst *clients.Installation, width int) (*huh.Form, *installForm) {
+	st := &installForm{values: map[string]*string{}, scope: currentScope(inst)}
 	var fields []huh.Field
 	for _, in := range e.Inputs {
 		v := vals[in.Key]
@@ -175,12 +208,16 @@ func newInstallForm(e *registry.Entry, vals shed.Values, width int) (*huh.Form, 
 	}
 	// Every client has a project scope (Claude: .mcp.json, Codex: .codex/config.toml).
 	if root := clients.GitRoot(); root != "" {
+		opts := []huh.Option[string]{
+			huh.NewOption("All projects", "user"),
+			huh.NewOption("This repo only ("+filepath.Base(root)+")", "project"),
+		}
+		if st.scope == keepScopes {
+			opts = append([]huh.Option[string]{huh.NewOption("Where it is now ("+placement(inst)+")", keepScopes)}, opts...)
+		}
 		fields = append(fields, huh.NewSelect[string]().
 			Title("Install for").
-			Options(
-				huh.NewOption("All projects", "user"),
-				huh.NewOption("This repo only ("+filepath.Base(root)+")", "project"),
-			).
+			Options(opts...).
 			Value(&st.scope))
 	}
 	if len(fields) == 0 {

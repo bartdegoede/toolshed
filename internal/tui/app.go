@@ -424,7 +424,7 @@ func (m model) submitForm() (tea.Model, tea.Cmd) {
 // has none.
 func (m model) openInstall(e *registry.Entry) (tea.Model, tea.Cmd) {
 	vals, _ := shed.Resolve(e, m.inst[e.ID], nil)
-	form, st := newInstallForm(e, vals, m.detailWidth())
+	form, st := newInstallForm(e, vals, m.inst[e.ID], m.detailWidth())
 	m.install = st
 	if form == nil {
 		return m.startInstall(e)
@@ -436,14 +436,20 @@ func (m model) startInstall(e *registry.Entry) (tea.Model, tea.Cmd) {
 	if e == nil {
 		return m, nil
 	}
-	vals, scope := shed.Values{}, "user"
+	vals, opts := shed.Values{}, shed.InstallOptions{Scope: "user"}
 	if m.install != nil {
-		vals, scope = m.install.collected(), m.install.scope
+		vals, opts.Scope = m.install.collected(), m.install.scope
+	}
+	if inst := m.inst[e.ID]; opts.Scope == keepScopes && inst != nil {
+		// Each client where it is now. Clients it isn't in yet still get it,
+		// as on any install, at the first client's scope.
+		opts = shed.KeepScopes(inst)
+		opts.Clients = nil
 	}
 	// Keep previously stored/installed values the form didn't change.
 	resolved, _ := shed.Resolve(e, m.inst[e.ID], vals)
 	return m.runBusy("Installing "+e.DisplayName(), func() doneMsg {
-		res, err := shed.Install(e, resolved, shed.InstallOptions{Scope: scope})
+		res, err := shed.Install(e, resolved, opts)
 		if err != nil {
 			return doneMsg{err: err}
 		}
