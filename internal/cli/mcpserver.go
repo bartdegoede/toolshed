@@ -41,7 +41,7 @@ type addArgs struct {
 
 type installArgs struct {
 	ID     string            `json:"id" jsonschema:"the server's id"`
-	Scope  string            `json:"scope,omitempty" jsonschema:"user (all projects, default) or project (this repository only: .mcp.json for Claude Code, .codex/config.toml for Codex)"`
+	Scope  string            `json:"scope,omitempty" jsonschema:"user (all projects) or project (this repository only: .mcp.json for Claude Code, .codex/config.toml for Codex). Default: user for a new server; where it is now for an installed one, which can't be moved from here"`
 	Values map[string]string `json:"values,omitempty" jsonschema:"values for non-secret inputs; never secrets"`
 }
 
@@ -197,6 +197,16 @@ func newMCPServer() *mcp.Server {
 		installed := clients.Detect()
 		if err := checkUnchanged(e, installed[e.ID]); err != nil {
 			return toolError(err), nil, nil
+		}
+		if inst := installed[e.ID]; inst != nil {
+			// Moving a tool can take it out of a repository's committed
+			// config: that's the user's call, not the agent's.
+			if mv := shed.Moves(e, inst, opts); a.Scope != "" && len(mv) > 0 {
+				return toolError(fmt.Errorf("%s is installed in %s at %s scope; installing it at %s scope would move it. Leave scope out to reinstall it where it is, or ask the user to run `toolshed install %s --%s` in a terminal",
+					e.ID, clients.Label(mv[0].Client), mv[0].From, a.Scope, e.ID, a.Scope)), nil, nil
+			}
+			opts = shed.KeepScopes(inst)
+			opts.Clients = nil
 		}
 		vals, missing := shed.Resolve(e, installed[e.ID], a.Values)
 		if len(missing) > 0 {

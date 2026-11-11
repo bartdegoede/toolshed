@@ -83,7 +83,7 @@ def wait_for(desc, check, timeout=15):
 
 
 class TUI:
-    KEYS = {"enter": b"\r", "left": b"\x1b[D", "down": b"\x1b[B", "space": b" ", "esc": b"\x1b"}
+    KEYS = {"enter": b"\r", "left": b"\x1b[D", "down": b"\x1b[B", "up": b"\x1b[A", "space": b" ", "esc": b"\x1b"}
 
     def __init__(self, cwd=None):
         self.pid, self.fd = pty.fork()
@@ -232,6 +232,16 @@ else:
     bad("reinstall: the form asks where", tui.text()[-300:])
 check("reinstall: still in the repo's .codex/config.toml", repo_codex_has("cxonly"))
 check("reinstall: no copy in ~/.codex/config.toml", not codex_has("cxonly"))
+
+# Choosing "All projects" instead moves it out of the repo.
+tui.out = b""
+tui.press("i")
+if tui.screen_has("Install for"):
+    tui.press("up", "enter")
+    wait_for("move: in ~/.codex/config.toml", lambda: codex_has("cxonly"))
+    check("move: gone from the repo's .codex/config.toml", not repo_codex_has("cxonly"))
+else:
+    bad("move: the form asks where", tui.text()[-300:])
 check("q quits", tui.quit())
 
 print(f"\n{passed} passed, {failed} failed")

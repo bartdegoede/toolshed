@@ -8,9 +8,9 @@ only used when it's on your `PATH`.
 
 ## Scope
 
-`toolshed install <id>` installs for your user, so the tool is available in
-every project. `--project` (or "this repo" in the TUI) writes it into the
-repository instead, so it can be committed and shared:
+`toolshed install <id>` installs a new tool for your user, so it's available
+in every project. `--project` (or "This repo only" in the TUI) writes it into
+the repository instead, so it can be committed and shared:
 
 | | For your user | For this repository |
 | --- | --- | --- |
@@ -21,9 +21,17 @@ Codex only reads a project's config once you've trusted the project (start
 `codex` in it and accept); toolshed tells you when it isn't trusted yet.
 Tools with secrets are registered there as plain `toolshed exec …`, found on
 `PATH`, rather than your own toolshed's path, so they work for teammates who
-installed toolshed somewhere else. Claude Code's per-project "local" scope is
-kept when toolshed installs a tool again, and so is each client's scope (in
-the TUI, "where it is now" is the form's default).
+installed toolshed somewhere else.
+
+Installing a tool again keeps it where it is in each client, including Claude
+Code's per-project "local" scope (in the TUI, that's the form's default).
+Choosing the other scope (`--user` or `--project`, or the other option in the
+TUI) moves it: toolshed registers it at the new scope, with the settings it
+doesn't manage (a Claude Code `timeout`, Codex's `startup_timeout_sec` and
+tool approvals), then removes the old registration, so a tool is never in
+two places at once. Moving a tool out of the repository removes it from the
+repository's `.mcp.json` and `.codex/config.toml`, which teammates may be
+using; toolshed tells you when it moves something.
 
 ## How the config is written
 

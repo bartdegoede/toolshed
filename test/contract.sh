@@ -69,6 +69,24 @@ check "codex sees the project's server once trusted" '[.[] | select(.name == "no
 json="$(jq -c '.mcpServers.notes' "$repo/.mcp.json")"
 check "claude's .mcp.json has it" '.command == "sh"'
 
+section "changing scope moves it"
+# notes was at user scope (with Codex settings from above); --project moved it.
+json="$(codex mcp list --json 2>/dev/null)"
+check "codex: gone from user scope" '[.[] | select(.name == "notes")] | length == 0'
+json="$(cd "$repo" && codex mcp get notes --json 2>/dev/null)"
+check "codex: its settings moved with it" '.startup_timeout_sec == 45 and .disabled_tools == ["danger"]'
+json="$(jq -c '.mcpServers // {}' "$HOME/.claude.json")"
+check "claude: gone from user scope" 'has("notes") | not'
+(cd "$repo" && "$TS" install notes -y --user >/dev/null 2>&1) || bad "install --user"
+cget notes
+check "codex: back at user scope, settings and all" '.startup_timeout_sec == 45 and .disabled_tools == ["danger"]'
+json="$(python3 -c 'import sys,tomllib,json; print(json.dumps(tomllib.load(open(sys.argv[1],"rb")).get("mcp_servers",{})))' "$repo/.codex/config.toml")"
+check "codex: gone from the repo" 'has("notes") | not'
+json="$(jq -c '.mcpServers // {}' "$repo/.mcp.json")"
+check "claude: gone from .mcp.json" 'has("notes") | not'
+json="$(jq -c '.mcpServers.notes' "$HOME/.claude.json")"
+check "claude: back at user scope" '.command == "sh"'
+
 section "server names toolshed used to write"
 cat >> "$CODEX_HOME/config.toml" <<'EOF'
 

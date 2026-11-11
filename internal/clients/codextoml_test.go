@@ -163,14 +163,14 @@ func TestWriteCodexServerKeepsFileMode(t *testing.T) {
 	if err := os.WriteFile(path, []byte(userConfig), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeCodexServer(path, "my-tool", "", &codexServer{Command: "new"}); err != nil {
+	if err := writeCodexServer(path, "my-tool", "", nil, &codexServer{Command: "new"}); err != nil {
 		t.Fatal(err)
 	}
 	fi, _ := os.Stat(path)
 	if fi.Mode().Perm() != 0o640 {
 		t.Fatalf("mode = %v", fi.Mode().Perm())
 	}
-	if err := writeCodexServer(filepath.Join(t.TempDir(), "new", "config.toml"), "x", "", &codexServer{Command: "sh"}); err != nil {
+	if err := writeCodexServer(filepath.Join(t.TempDir(), "new", "config.toml"), "x", "", nil, &codexServer{Command: "sh"}); err != nil {
 		t.Fatalf("creating a new config: %v", err)
 	}
 }

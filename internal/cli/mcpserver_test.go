@@ -2,13 +2,17 @@ package cli
 
 import (
 	"context"
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/bartdegoede/toolshed/internal/clients"
+	"github.com/bartdegoede/toolshed/internal/clients/clienttest"
 	"github.com/bartdegoede/toolshed/internal/registry"
 	"github.com/bartdegoede/toolshed/internal/secrets"
 )
@@ -163,5 +167,38 @@ func TestMCPErrors(t *testing.T) {
 	}
 	if out, isErr := callTool(t, cs, "install_server", map[string]any{"id": "nope"}); !isErr {
 		t.Fatalf("unknown id should fail: %s", out)
+	}
+}
+
+// The agent can reinstall a tool where it is, but not move it: moving can
+// take it out of a repository's committed config.
+func TestMCPWontMoveScope(t *testing.T) {
+	cs := session(t)
+	repo := filepath.Join(os.Getenv("HOME"), "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	t.Chdir(repo)
+	_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh"})
+	for _, c := range clients.All {
+		if err := clients.Register(c, "hi", clients.Config{Type: "stdio", Command: "sh"}, "project"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inRepo := map[string]string{clients.Claude: "project", clients.Codex: "project"}
+
+	out, isErr := callTool(t, cs, "install_server", map[string]any{"id": "hi", "scope": "user"})
+	if !isErr || !strings.Contains(out, "toolshed install hi --user") {
+		t.Fatalf("a move should be refused: %s", out)
+	}
+	if got := clienttest.Placements(t, "hi", repo); !maps.Equal(got, inRepo) {
+		t.Fatalf("refused move changed the registrations: %v", got)
+	}
+	out, isErr = callTool(t, cs, "install_server", map[string]any{"id": "hi"})
+	if isErr {
+		t.Fatalf("reinstall where it is: %s", out)
+	}
+	if got := clienttest.Placements(t, "hi", repo); !maps.Equal(got, inRepo) {
+		t.Fatalf("reinstall without a scope should keep it in the repo, got %v", got)
 	}
 }
