@@ -16,7 +16,7 @@ func TestDoctorFindings(t *testing.T) {
 	secrets.UseMockForTest(true)
 	_ = secrets.Set("ok", "TOKEN", "x")
 	stdio := func(cmd string, args ...string) *clients.Installation {
-		return &clients.Installation{ClaudeScope: "user", Config: clients.Config{Type: "stdio", Command: cmd, Args: args}}
+		return inClaude(clients.Config{Type: "stdio", Command: cmd, Args: args})
 	}
 	wrap := func(self, id, cmd string) *clients.Installation {
 		return stdio(self, "exec", id, "--secret", "TOKEN="+id, "--", cmd)

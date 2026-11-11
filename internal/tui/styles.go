@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"image/color"
 	"time"
 
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/bartdegoede/toolshed/internal/clients"
 )
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -46,12 +49,18 @@ var (
 	keyStyle     = lipgloss.NewStyle().Foreground(textColor).Bold(true)
 )
 
+// clientColors gives each client its own color for its dots.
+var clientColors = map[string]color.Color{
+	clients.Claude: claudeColor,
+	clients.Codex:  codexColor,
+}
+
 // clientStyle colors a client's badge.
 func clientStyle(client string) lipgloss.Style {
-	if client == "codex" {
-		return lipgloss.NewStyle().Foreground(codexColor)
+	if c, ok := clientColors[client]; ok {
+		return lipgloss.NewStyle().Foreground(c)
 	}
-	return lipgloss.NewStyle().Foreground(claudeColor)
+	return lipgloss.NewStyle().Foreground(primaryColor)
 }
 
 func formTheme() huh.Theme { return huh.ThemeFunc(huh.ThemeCatppuccin) }

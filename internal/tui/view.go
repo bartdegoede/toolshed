@@ -173,7 +173,7 @@ func (m model) badges(e *registry.Entry) string {
 	var parts []string
 	for _, c := range clients.All {
 		switch {
-		case inst != nil && contains(inst.Clients(), c):
+		case inst != nil && inst.Has(c):
 			parts = append(parts, clientStyle(c).Render("●"))
 		case !e.SupportsClient(c):
 			parts = append(parts, faintStyle.Render(" "))
@@ -222,10 +222,14 @@ func (m model) renderDetail() string {
 	} else {
 		b.WriteString("  " + codeStyle.Render(truncate("$ "+strings.Join(append([]string{e.Command}, e.Args...), " "), w-2)) + "\n")
 	}
-	if !e.SupportsClient(clients.Codex) {
-		b.WriteString("  " + warnStyle.Render("Claude Code only") + "\n")
-	} else if !e.SupportsClient(clients.Claude) {
-		b.WriteString("  " + warnStyle.Render("Codex only") + "\n")
+	var only []string
+	for _, c := range clients.All {
+		if e.SupportsClient(c) {
+			only = append(only, clients.Label(c))
+		}
+	}
+	if len(only) < len(clients.All) {
+		b.WriteString("  " + warnStyle.Render(strings.Join(only, ", ")+" only") + "\n")
 	}
 
 	if len(e.Inputs) > 0 {
@@ -249,13 +253,11 @@ func (m model) renderDetail() string {
 	b.WriteString("\n" + labelStyle.Render("INSTALLED") + "\n")
 	inst := m.inst[e.ID]
 	for _, c := range clients.All {
-		label := map[string]string{clients.Claude: "Claude Code", clients.Codex: "Codex"}[c]
+		label := clients.Label(c)
 		var status string
 		switch {
-		case inst != nil && c == clients.Claude && inst.ClaudeScope != "":
-			status = successStyle.Render("installed") + faintStyle.Render(" ("+inst.ClaudeScope+")")
-		case inst != nil && c == clients.Codex && inst.Codex:
-			status = successStyle.Render("installed") + faintStyle.Render(" ("+inst.CodexScope+")")
+		case inst != nil && inst.Has(c):
+			status = successStyle.Render("installed") + faintStyle.Render(" ("+inst.Scope(c)+")")
 		case !contains(m.avail, c):
 			status = faintStyle.Render("not on this machine")
 		case !e.SupportsClient(c):
@@ -264,7 +266,7 @@ func (m model) renderDetail() string {
 			status = dimStyle.Render("—")
 		}
 		dot := clientStyle(c).Render("●")
-		if inst == nil || !contains(inst.Clients(), c) {
+		if inst == nil || !inst.Has(c) {
 			dot = faintStyle.Render("○")
 		}
 		fmt.Fprintf(&b, "  %s %-12s %s\n", dot, label, status)

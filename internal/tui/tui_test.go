@@ -106,7 +106,7 @@ func TestRender(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inst := map[string]*clients.Installation{"hello": {Name: "hello", ClaudeScope: "user", Codex: true}}
+	inst := map[string]*clients.Installation{"hello": inBoth(clients.Config{}, clients.Config{})}
 	var m tea.Model = newModel()
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
 	m, _ = m.Update(loadedMsg{reg: reg, inst: inst, avail: []string{"claude", "codex"}})
@@ -175,7 +175,7 @@ func TestPendingToolAsksForApproval(t *testing.T) {
 // first, showing the change.
 func TestChangedToolAsksBeforeReinstall(t *testing.T) {
 	reg := &registry.Registry{Entries: []*registry.Entry{{ID: "notes", Command: "notes-mcp", Args: []string{"--evil"}, Source: registry.SourceUser}}}
-	inst := map[string]*clients.Installation{"notes": {ClaudeScope: "user", Config: clients.Config{Type: "stdio", Command: "notes-mcp"}}}
+	inst := map[string]*clients.Installation{"notes": inClaude(clients.Config{Type: "stdio", Command: "notes-mcp"})}
 	var m tea.Model = newModel()
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
 	m, _ = m.Update(loadedMsg{reg: reg, inst: inst, avail: []string{"claude"}})
@@ -194,9 +194,9 @@ func TestChangedToolAsksBeforeReinstall(t *testing.T) {
 func TestImportScreen(t *testing.T) {
 	reg := &registry.Registry{Entries: []*registry.Entry{{ID: "mine", Command: "sh", Source: registry.SourceUser}}}
 	inst := map[string]*clients.Installation{
-		"byhand": {ClaudeScope: "user", Config: clients.Config{Type: "stdio", Command: "srv",
-			Env: map[string]string{"API_TOKEN": "sk-live-abcdefghijkl", "LEVEL": "debug"}}},
-		"legacy": {Codex: true, CodexScope: "user", CodexConfig: clients.Config{Type: "sse", URL: "https://old"}, Config: clients.Config{Type: "sse", URL: "https://old"}},
+		"byhand": inClaude(clients.Config{Type: "stdio", Command: "srv",
+			Env: map[string]string{"API_TOKEN": "sk-live-abcdefghijkl", "LEVEL": "debug"}}),
+		"legacy": {Regs: map[string]clients.Registration{clients.Codex: {Scope: "user", Config: clients.Config{Type: "sse", URL: "https://old"}}}},
 	}
 	var m tea.Model = newModel()
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
@@ -314,8 +314,8 @@ func TestConfirmFormAnswersArrive(t *testing.T) {
 func TestImportFormTicksArrive(t *testing.T) {
 	reg := &registry.Registry{}
 	inst := map[string]*clients.Installation{
-		"byhand": {ClaudeScope: "user", Config: clients.Config{Type: "stdio", Command: "srv",
-			Env: map[string]string{"API_TOKEN": "sk-live-abcdefghijkl", "LEVEL": "debug"}}},
+		"byhand": inClaude(clients.Config{Type: "stdio", Command: "srv",
+			Env: map[string]string{"API_TOKEN": "sk-live-abcdefghijkl", "LEVEL": "debug"}}),
 	}
 	var m tea.Model = newModel()
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})

@@ -67,7 +67,7 @@ func TestUpgradeMovesThePinAndReinstalls(t *testing.T) {
 	if got := reg.Get("notes").Args[1]; got != "@acme/notes@2.0.0" {
 		t.Fatalf("registry not upgraded: %s", got)
 	}
-	if got := clients.Detect()["notes"].Config.Args; !slices.Equal(got, []string{"-y", "@acme/notes@2.0.0"}) {
+	if got := clients.Detect()["notes"].Config().Args; !slices.Equal(got, []string{"-y", "@acme/notes@2.0.0"}) {
 		t.Fatalf("installed tool not re-registered: %v", got)
 	}
 	if err := runUpgrade([]string{"plain"}); err == nil {
@@ -87,13 +87,13 @@ func TestUpdateReviewsChanges(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "-y") {
 		t.Fatalf("update without a terminal should refuse a change, got %v", err)
 	}
-	if got := clients.Detect()["notes"].Config.Args; len(got) != 0 {
+	if got := clients.Detect()["notes"].Config().Args; len(got) != 0 {
 		t.Fatalf("refused update still changed the registration: %v", got)
 	}
 	if err := runInstall([]string{"notes", "-y"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := clients.Detect()["notes"].Config.Args; !slices.Equal(got, []string{"-c", "evil"}) {
+	if got := clients.Detect()["notes"].Config().Args; !slices.Equal(got, []string{"-c", "evil"}) {
 		t.Fatalf("install -y should accept the change, got %v", got)
 	}
 	if err := runUpdate([]string{"notes"}); err != nil {

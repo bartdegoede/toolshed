@@ -54,11 +54,16 @@ func Imports(reg *registry.Registry, installed map[string]*clients.Installation)
 }
 
 func importOne(name string, inst *clients.Installation) Import {
-	im := Import{Name: name, Inst: inst, Clients: inst.Clients(), Values: Values{}}
-	cfg := inst.Config // Claude's when Claude has it, else Codex's
-	if inst.ClaudeScope != "" && inst.Codex && !sameServer(inst.Config, inst.CodexConfig) {
-		im.Clients = []string{clients.Claude}
-		im.Notes = append(im.Notes, "Codex runs something else under this name, so it's left as it is")
+	im := Import{Name: name, Inst: inst, Values: Values{}}
+	// Import what the first client (in display order) runs, from every
+	// client that runs the same thing.
+	cfg := inst.Config()
+	for i, c := range inst.Clients() {
+		if i == 0 || sameServer(cfg, inst.Regs[c].Config) {
+			im.Clients = append(im.Clients, c)
+		} else {
+			im.Notes = append(im.Notes, clients.Label(c)+" runs something else under this name, so it's left as it is")
+		}
 	}
 	id := sanitize(name)
 	if !registry.IsValidID(id) {
@@ -105,7 +110,7 @@ func importOne(name string, inst *clients.Installation) Import {
 				im.Vars = append(im.Vars, ImportVar{Key: key, Value: v, Secret: v != "" && SecretHeader(name)})
 			}
 		}
-		if c := inst.CodexConfig; inst.Codex && (c.BearerTokenEnvVar != "" || len(c.EnvHeaders) > 0) {
+		if c, ok := inst.Regs[clients.Codex]; ok && (c.Config.BearerTokenEnvVar != "" || len(c.Config.EnvHeaders) > 0) {
 			im.Notes = append(im.Notes, "Codex reads its token from your environment (bearer_token_env_var / env_http_headers); that setting stays as it is")
 		}
 	default:

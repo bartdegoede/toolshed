@@ -21,7 +21,7 @@ it runs in a throwaway `$HOME` with mock client CLIs from `test/mocks`.
 ```
 cmd/toolshed/        entry point
 internal/registry/   registry schema, loading, merging, validation, editing
-internal/clients/    Claude Code + Codex: register/unregister, read configs
+internal/clients/    one adapter per client (claude.go, codex.go): register, read configs
 internal/secrets/    OS keyring
 internal/shed/       the operations: install, uninstall, exec, probe
 internal/cli/        subcommands (thin wrappers over shed)
@@ -32,6 +32,9 @@ examples/ping-mcp/  example server (separate Go module)
 ## Guidelines
 
 - Keep features in `shed` so the CLI and TUI stay in sync.
+- Client-specific behaviour belongs in that client's adapter in
+  `internal/clients` (the `Client` interface); elsewhere, loop over
+  `clients.All` instead of naming a client.
 - New registry fields need validation in `registry.ValidateEntry`, a test
   case, and a line in `docs/registry.md`. User-facing changes update the
   page in `docs/` that describes them (see AGENTS.md).

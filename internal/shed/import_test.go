@@ -36,9 +36,7 @@ func TestSecretValue(t *testing.T) {
 }
 
 func TestImports(t *testing.T) {
-	claude := func(cfg clients.Config) *clients.Installation {
-		return &clients.Installation{ClaudeScope: "user", Config: cfg}
-	}
+	claude := inClaude
 	reg := &registry.Registry{Entries: []*registry.Entry{{ID: "managed", Command: "sh"}}}
 	installed := map[string]*clients.Installation{
 		"managed": claude(clients.Config{Command: "sh"}),
@@ -49,7 +47,7 @@ func TestImports(t *testing.T) {
 		"headers":     claude(clients.Config{Type: "http", URL: "https://x.example/mcp", Headers: map[string]string{"Authorization": "Bearer x"}}),
 		"orphan": claude(clients.Config{Type: "stdio", Command: "/opt/toolshed",
 			Args: []string{"exec", "orphan", "--secret", "TOKEN=github", "--", "srv", "--flag"}}),
-		"split": {ClaudeScope: "user", Config: clients.Config{Command: "a"}, Codex: true, CodexConfig: clients.Config{Command: "b"}},
+		"split": inBoth(clients.Config{Command: "a"}, clients.Config{Command: "b"}),
 	}
 	got := map[string]Import{}
 	for _, im := range Imports(reg, installed) {
