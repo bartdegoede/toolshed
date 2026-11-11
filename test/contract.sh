@@ -113,6 +113,30 @@ grep -q "id: byhand" "$TOOLSHED_HOME/registry.yaml" && ok "imported" || bad "imp
 cget byhand
 check "bearer_token_env_var kept" '.transport.bearer_token_env_var == "BYHAND_TOKEN"'
 
+section "a second copy: doctor agrees with each client on which one it uses"
+"$TS" add twin --no-check -- sh -c true >/dev/null
+for s in project user; do
+    (cd "$repo" && claude mcp add-json twin '{"type":"stdio","command":"sh","args":["-c","true"]}' -s "$s" >/dev/null 2>&1) || bad "claude mcp add-json -s $s"
+done
+printf '\n[mcp_servers.twin]\ncommand = "sh"\nargs = ["-c", "true"]\nstartup_timeout_sec = 11\n' >> "$CODEX_HOME/config.toml"
+printf '\n[mcp_servers.twin]\ncommand = "sh"\nargs = ["-c", "true"]\nstartup_timeout_sec = 22\n' >> "$repo/.codex/config.toml"
+claude_uses="$(cd "$repo" && claude mcp get twin 2>/dev/null | sed -n 's/^ *Scope: \([A-Za-z]*\) config.*/\1/p' | tr A-Z a-z)"
+codex_uses="$(cd "$repo" && codex mcp get twin --json 2>/dev/null | jq -r 'if .startup_timeout_sec == 22 then "project" else "user" end')"
+json="$(cd "$repo" && "$TS" doctor --no-start --json 2>/dev/null)"
+check "claude uses the $claude_uses one, and doctor says so" "[.tools[] | select(.id == \"twin\") | .findings[].text | select(startswith(\"Claude Code also has it\") and endswith(\"uses the $claude_uses one here\"))] | length == 1"
+check "codex uses the $codex_uses one, and doctor says so" "[.tools[] | select(.id == \"twin\") | .findings[].text | select(startswith(\"Codex also has it\") and endswith(\"uses the $codex_uses one here\"))] | length == 1"
+fixes="$(jq -r '.tools[] | select(.id == "twin") | .findings[].fix | select(startswith("toolshed uninstall"))' <<<"$json")"
+while read -r fix; do
+    (cd "$repo" && "$TS" ${fix#toolshed } >/dev/null 2>&1) || bad "$fix"
+done <<<"$fixes"
+json="$(cd "$repo" && claude mcp list 2>&1 | jq -Rs .)"
+check "claude no longer warns about it" 'contains("\"twin\" is defined in multiple scopes") | not'
+json="$(python3 -c 'import sys,tomllib,json; print(json.dumps([("twin" in tomllib.load(open(p,"rb")).get("mcp_servers",{})) for p in sys.argv[1:]]))' "$CODEX_HOME/config.toml" "$repo/.codex/config.toml")"
+check "codex has one copy left" 'map(select(.)) | length == 1'
+json="$(cd "$repo" && "$TS" doctor --no-start --json 2>/dev/null)"
+check "doctor is quiet about it" '[.tools[] | select(.id == "twin") | (.findings // [])[].text | select(contains("also has it"))] | length == 0'
+"$TS" remove twin >/dev/null 2>&1 || true
+
 section "uninstall"
 "$TS" uninstall notes hosted >/dev/null 2>&1 || bad "uninstall"
 json="$(codex mcp list --json)"

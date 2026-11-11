@@ -20,8 +20,11 @@ func (claudeClient) Available() bool               { return onPath("claude") }
 func (claudeClient) Scope(requested string) string { return requested }
 func (claudeClient) Notes(string) []string         { return nil }
 
-func (claudeClient) detect(root string) map[string]Registration {
-	found := map[string]Registration{}
+// detect returns user, local and project registrations in the order Claude
+// Code resolves a name defined at several scopes, checked against the real
+// CLI: local wins over user, and user over project.
+func (claudeClient) detect(root string) []found {
+	var out []found
 	add := func(servers map[string]json.RawMessage, scope string) {
 		for name, raw := range servers {
 			var cfg Config
@@ -29,7 +32,7 @@ func (claudeClient) detect(root string) map[string]Registration {
 			if json.Unmarshal(raw, &cfg) != nil || json.Unmarshal(raw, &fields) != nil {
 				continue
 			}
-			found[name] = Registration{Scope: scope, Key: name, Config: cfg, raw: fields}
+			out = append(out, found{name, Registration{Scope: scope, Key: name, Config: cfg, raw: fields}})
 		}
 	}
 	var claudeJSON struct {
@@ -39,16 +42,18 @@ func (claudeClient) detect(root string) map[string]Registration {
 		} `json:"projects"`
 	}
 	readJSON(filepath.Join(homeDir(), ".claude.json"), &claudeJSON)
-	add(claudeJSON.MCPServers, "user")
 	if root != "" {
-		add(claudeJSON.Projects[root].MCPServers, "local")
 		var mcpJSON struct {
 			MCPServers map[string]json.RawMessage `json:"mcpServers"`
 		}
 		readJSON(filepath.Join(root, ".mcp.json"), &mcpJSON)
 		add(mcpJSON.MCPServers, "project")
 	}
-	return found
+	add(claudeJSON.MCPServers, "user")
+	if root != "" {
+		add(claudeJSON.Projects[root].MCPServers, "local")
+	}
+	return out
 }
 
 // register is remove-then-add, carrying over any keys toolshed doesn't

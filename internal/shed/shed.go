@@ -249,6 +249,46 @@ func CheckCommand(e *registry.Entry) error {
 	return nil
 }
 
+// UninstallCopy removes one registration of the tool: in client (or, with
+// client "", every client), at scope (or, with scope "", the one each client
+// uses here). Unlike Uninstall it also reaches copies a client hides behind
+// another scope (see doctor), and never touches secrets. It returns the
+// clients it removed it from.
+func UninstallCopy(e *registry.Entry, inst *clients.Installation, client, scope string) ([]string, error) {
+	var removed []string
+	var errs []error
+	if inst != nil {
+		for _, c := range inst.Clients() {
+			if client != "" && c != client {
+				continue
+			}
+			at := scope
+			if at == "" {
+				at = inst.Scope(c)
+			}
+			if _, ok := inst.At(c, at); !ok {
+				continue
+			}
+			if err := clients.Unregister(c, e.ID, at); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", c, err))
+				continue
+			}
+			removed = append(removed, c)
+		}
+	}
+	if len(removed) == 0 && len(errs) == 0 {
+		where := "anywhere"
+		if client != "" {
+			where = "in " + clients.Label(client)
+		}
+		if scope != "" {
+			where += " at " + scope + " scope"
+		}
+		return nil, fmt.Errorf("%s isn't registered %s", e.ID, where)
+	}
+	return removed, errors.Join(errs...)
+}
+
 // Uninstall removes the tool from every client it's registered in. With
 // purge it also deletes its secrets, except groups still used by another
 // installed tool.

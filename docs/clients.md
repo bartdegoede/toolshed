@@ -33,6 +33,12 @@ two places at once. Moving a tool out of the repository removes it from the
 repository's `.mcp.json` and `.codex/config.toml`, which teammates may be
 using; toolshed tells you when it moves something.
 
+If a client has the same name at two scopes anyway, it uses one of them:
+Claude Code takes "local" over user over project (`.mcp.json`), and Codex
+takes the project's once you've trusted the project, otherwise your user's.
+toolshed shows the one the client uses, and `toolshed doctor` points out the
+other.
+
 ## How the config is written
 
 Claude Code registrations go through `claude mcp add-json`. Settings toolshed
