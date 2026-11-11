@@ -51,7 +51,7 @@ tools:
         default: OPS
         optional: true
 
-    clients: [claude, codex]      # optional: restrict where it installs
+    clients: [claude, codex]      # optional: restrict where it installs (claude, codex, antigravity)
 ```
 
 …or a remote server, with a token from your keyring:

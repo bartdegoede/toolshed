@@ -28,7 +28,7 @@ here; to keep that one instead, remove the other with `--scope`.
 
 It also lists servers registered through toolshed that are no longer in your
 registry (`toolshed import <name>` brings them back), and how many other
-servers Claude Code and Codex have that toolshed doesn't manage (see
+servers your clients have that toolshed doesn't manage (see
 [Import](import.md)).
 
 `--no-start` skips starting the servers, which is much faster with npm and

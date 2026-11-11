@@ -1,6 +1,6 @@
 # Your agent
 
-<!-- summary: Let Claude Code or Codex add servers themselves -->
+<!-- summary: Let your coding agent add servers itself -->
 
 toolshed is an MCP server itself. Install it like any other tool:
 

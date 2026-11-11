@@ -78,7 +78,7 @@ func printDoctor(avail []string, report []shed.Health, orphans, unmanaged []stri
 		}
 	}
 	if len(avail) == 0 {
-		fmt.Printf("%s neither Claude Code nor Codex is on PATH\n", red("✗"))
+		fmt.Printf("%s none of %s is on PATH\n", red("✗"), clients.Labels("or"))
 	}
 	fmt.Println()
 

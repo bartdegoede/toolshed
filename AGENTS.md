@@ -1,14 +1,14 @@
 # toolshed
 
-Go CLI + TUI that adds MCP servers to Claude Code and Codex from a YAML
-registry, with secrets in the OS keyring. User docs: README.md and docs/
-(also published at https://toolshed.run, see "Docs" below). Layout and rules:
-CONTRIBUTING.md.
+Go CLI + TUI that adds MCP servers to Claude Code, Codex and Antigravity
+(Antigravity CLI, `agy`) from a YAML registry, with secrets in the OS
+keyring. User docs: README.md and docs/ (also published at
+https://toolshed.run, see "Docs" below). Layout and rules: CONTRIBUTING.md.
 
 ```bash
 just build      # ./toolshed
 just test       # go test -race ./... (+ examples/ping-mcp)
-just test-e2e   # test/e2e.sh with test/mocks/{claude,codex}
+just test-e2e   # test/e2e.sh with test/mocks/{claude,codex,agy}
 just lint
 ```
 
@@ -27,13 +27,19 @@ just lint
   registry file.
 - Label PRs (security, enhancement, bug, documentation, dependencies): the
   release notes are grouped by those labels (.github/release.yml).
-- Codex: toolshed edits config.toml itself (internal/clients/codextoml.go),
-  only the keys it owns, because `codex mcp add` resets a server's table.
-  Claude: `claude mcp add-json`, carrying over keys toolshed doesn't model.
-  Support both clients equally: a feature isn't done until it works in Codex.
-- `just test-contract` runs toolshed against the real claude and codex CLIs
-  (versions pinned in CI's contract job). Run it after touching
-  internal/clients; bump the pins on purpose.
+- One adapter per client in internal/clients. Codex: toolshed edits
+  config.toml itself (codextoml.go), only the keys it owns, because
+  `codex mcp add` resets a server's table. Antigravity: the same for its
+  mcp_config.json (jsonedit.go keeps comments and formatting), because
+  `agy mcp add` replaces a server's entry. Claude: `claude mcp add-json`,
+  carrying over keys toolshed doesn't model. Support every client equally: a
+  feature isn't done until it works in all of them, or says why it can't
+  (Antigravity has no headers helper and no "local" scope: skipped, with a
+  note, never installed somewhere broader instead).
+- `just test-contract` runs toolshed against the real claude, codex and agy
+  CLIs (versions pinned in CI's contract job; agy by URL and SHA-512). Run it
+  after touching internal/clients; bump the pins on purpose. `agy mcp list`
+  only reads the user's config: check project-scope changes in agy's /mcp.
 - Test what a flow does, not what it draws. Every user-facing flow (TUI
   keys, CLI commands, MCP tools) needs a test that drives it the way a user
   does and checks the outcome: the registry, the clients' config, the
@@ -79,4 +85,4 @@ bartdegoede/toolshed.run repo pulls them in at build time, pinned to
 the latest release). Each page starts with `# Title` and a
 `<!-- summary: … -->` line, which the site shows in its page list. Link
 between pages with relative `.md` links. A behaviour change isn't done until
-the page that describes it is updated, for Claude Code and Codex alike.
+the page that describes it is updated, for every client alike.

@@ -47,6 +47,15 @@ func Placements(t *testing.T, name, repo string) map[string]string {
 			found[clients.Codex] = append(found[clients.Codex], scope)
 		}
 	}
+	for scope, path := range map[string]string{"user": clients.AntigravityConfig(), "project": filepath.Join(repo, ".agents", "mcp_config.json")} {
+		var ag struct {
+			MCPServers map[string]any `json:"mcpServers"`
+		}
+		readJSON(t, path, &ag)
+		if _, ok := ag.MCPServers[name]; ok {
+			found[clients.Antigravity] = append(found[clients.Antigravity], scope)
+		}
+	}
 	out := map[string]string{}
 	for c, scopes := range found {
 		slices.Sort(scopes)

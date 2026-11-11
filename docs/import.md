@@ -2,7 +2,7 @@
 
 <!-- summary: Adopt the servers you already set up by hand -->
 
-If you've been adding MCP servers to Claude Code and Codex by hand, their
+If you've been adding MCP servers to Claude Code, Codex or Antigravity by hand, their
 tokens are probably sitting in `~/.claude.json` and `~/.codex/config.toml`
 in plain text.
 
@@ -10,7 +10,7 @@ in plain text.
 toolshed import
 ```
 
-finds every server Claude Code and Codex have that isn't in your toolshed
+finds every server your clients have that isn't in your toolshed
 yet: your user-wide ones, and the current repository's. For each one it:
 
 1. shows the command (or URL) and asks whether to import it;
@@ -42,8 +42,9 @@ it runs, and its values masked. Press `enter`, tick which values are secrets
   Codex's `startup_timeout_sec`, enabled tools and approvals.
 - Names that aren't valid ids (`My_Server`) are imported as one
   (`my-server`), and the old name is removed.
-- If Claude Code and Codex run different things under the same name, the
-  Claude Code one is imported and Codex's is left alone.
+- If your clients run different things under the same name, the first
+  one's (Claude Code, then Codex, then Antigravity) is imported and the
+  others are left alone.
 - Remote servers that send fixed headers (`Authorization: Bearer …`) get
   those headers as inputs, and the credential ones move to the keyring. A
   Codex server that reads its token from your environment

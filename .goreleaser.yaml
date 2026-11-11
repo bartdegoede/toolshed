@@ -44,7 +44,7 @@ homebrew_casks:
       bash: completions/toolshed.bash
       zsh: completions/_toolshed
       fish: completions/toolshed.fish
-    description: Add any MCP server to Claude Code and Codex in seconds
+    description: Add any MCP server to Claude Code, Codex and Antigravity in seconds
     license: MIT
     # Unsigned binaries get quarantined by macOS Gatekeeper; clear the flag.
     hooks:

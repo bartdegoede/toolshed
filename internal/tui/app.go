@@ -486,9 +486,10 @@ func oneLine(s string) string {
 	return s
 }
 
-const noClientsText = `Neither Claude Code nor Codex is installed.
+const noClientsText = `None of Claude Code, Codex or Antigravity is installed.
 
 toolshed installs tools into them, so you need at least one:
 
   Claude Code   curl -fsSL https://claude.ai/install.sh | bash
-  Codex         npm install -g @openai/codex`
+  Codex         npm install -g @openai/codex
+  Antigravity   curl -fsSL https://antigravity.google/cli/install.sh | bash`

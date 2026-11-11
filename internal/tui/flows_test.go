@@ -118,8 +118,8 @@ func TestTUIApproveThenInstall(t *testing.T) {
 	}
 	m = press(t, m, key('i')) // nothing to ask (no inputs, not a git repo): installs straight away
 	inst := clients.Detect()["agentic"]
-	if inst == nil || !slices.Equal(inst.Clients(), []string{clients.Claude, clients.Codex}) {
-		t.Fatalf("not installed in both clients: %+v", inst)
+	if inst == nil || !slices.Equal(inst.Clients(), clients.All) {
+		t.Fatalf("not installed in every client: %+v", inst)
 	}
 	_ = m
 }
@@ -131,7 +131,7 @@ func TestTUIInstallForThisRepo(t *testing.T) {
 		only []string
 		want map[string]string // client -> scope
 	}{
-		"both clients": {nil, map[string]string{clients.Claude: "project", clients.Codex: "project"}},
+		"every client": {nil, map[string]string{clients.Claude: "project", clients.Codex: "project", clients.Antigravity: "project"}},
 		"codex only":   {[]string{clients.Codex}, map[string]string{clients.Codex: "project"}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -167,10 +167,10 @@ func TestTUIReinstallKeepsScopes(t *testing.T) {
 		at   map[string]string // client -> scope before; empty: not installed
 		want map[string]string // client -> scopes found in the config files after
 	}{
-		"in this repo":   {map[string]string{clients.Claude: "project", clients.Codex: "project"}, map[string]string{clients.Claude: "project", clients.Codex: "project"}},
-		"all projects":   {map[string]string{clients.Claude: "user", clients.Codex: "user"}, map[string]string{clients.Claude: "user", clients.Codex: "user"}},
+		"in this repo":   {map[string]string{clients.Claude: "project", clients.Codex: "project"}, map[string]string{clients.Claude: "project", clients.Codex: "project", clients.Antigravity: "project"}},
+		"all projects":   {map[string]string{clients.Claude: "user", clients.Codex: "user"}, map[string]string{clients.Claude: "user", clients.Codex: "user", clients.Antigravity: "user"}},
 		"local and user": {map[string]string{clients.Claude: "local", clients.Codex: "user"}, map[string]string{clients.Claude: "local", clients.Codex: "user"}},
-		"not installed":  {nil, map[string]string{clients.Claude: "user", clients.Codex: "user"}},
+		"not installed":  {nil, map[string]string{clients.Claude: "user", clients.Codex: "user", clients.Antigravity: "user"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			sandboxTUI(t)
@@ -196,13 +196,15 @@ func TestTUIReinstallKeepsScopes(t *testing.T) {
 // Choosing another scope for an installed tool moves it: it ends up only at
 // the new scope, in every client.
 func TestTUIMoveScope(t *testing.T) {
+	inRepo := map[string]string{clients.Claude: "project", clients.Codex: "project", clients.Antigravity: "project"}
+	everywhere := map[string]string{clients.Claude: "user", clients.Codex: "user", clients.Antigravity: "user"}
 	for name, tc := range map[string]struct {
 		from string
 		key  tea.KeyPressMsg // from the preselected current scope to the other one
-		to   string
+		want map[string]string
 	}{
-		"into this repo":   {"user", down, "project"},
-		"to every project": {"project", up, "user"},
+		"into this repo":   {"user", down, inRepo},
+		"to every project": {"project", up, everywhere},
 	} {
 		t.Run(name, func(t *testing.T) {
 			sandboxTUI(t)
@@ -213,14 +215,16 @@ func TestTUIMoveScope(t *testing.T) {
 			t.Chdir(repo)
 			_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh"})
 			for _, c := range clients.All {
+				if clients.Get(c).Scope(tc.from) != tc.from {
+					continue // no such scope there
+				}
 				if err := clients.Register(c, "hi", clients.Config{Type: "stdio", Command: "sh"}, tc.from); err != nil {
 					t.Fatal(err)
 				}
 			}
 			press(t, start(t), key('i'), tc.key, enter)
-			want := map[string]string{clients.Claude: tc.to, clients.Codex: tc.to}
-			if got := clienttest.Placements(t, "hi", repo); !maps.Equal(got, want) {
-				t.Fatalf("registered at %v, want %v", got, want)
+			if got := clienttest.Placements(t, "hi", repo); !maps.Equal(got, tc.want) {
+				t.Fatalf("registered at %v, want %v", got, tc.want)
 			}
 		})
 	}

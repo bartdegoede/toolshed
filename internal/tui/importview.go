@@ -13,7 +13,7 @@ import (
 	"github.com/bartdegoede/toolshed/internal/shed"
 )
 
-// The import screen lists the servers Claude Code and Codex have that aren't
+// The import screen lists the servers your clients have that aren't
 // in the toolshed (shed.Imports), and imports them one at a time: the user
 // ticks which values are secrets, and shed.Import.Apply does the rest.
 
@@ -54,7 +54,7 @@ func (m model) selectedImport() *shed.Import {
 func (m model) openImports() (tea.Model, tea.Cmd) {
 	m.refreshImports()
 	if len(m.imports) == 0 {
-		return m, m.setFlash("Nothing to import: everything Claude Code and Codex have is in your toolshed", true)
+		return m, m.setFlash("Nothing to import: everything your clients have is in your toolshed", true)
 	}
 	m.mode, m.inImport, m.flash = modeImport, true, ""
 	return m, nil

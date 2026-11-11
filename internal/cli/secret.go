@@ -70,7 +70,7 @@ func runSecret(args []string) error {
 		fmt.Printf("  %s\n", dim("Also used by "+strings.Join(others, ", ")+" (they share it)."))
 	}
 	if inst != nil {
-		fmt.Println(dim("  It's used the next time Claude Code or Codex starts the server (in Claude Code: /mcp)."))
+		fmt.Println(dim("  It's used the next time a client starts the server (in Claude Code: /mcp)."))
 	}
 	return nil
 }

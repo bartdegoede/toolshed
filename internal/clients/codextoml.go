@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -415,30 +414,7 @@ func writeCodexServer(path, name, legacy string, seed []byte, s *codexServer) er
 	} else if !ok || !got.matches(s) {
 		return fmt.Errorf("editing %s didn't give the intended [mcp_servers.%s] (nothing was written)", path, name)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	mode := os.FileMode(0o600)
-	if fi, err := os.Stat(path); err == nil {
-		mode = fi.Mode().Perm()
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".config-*.toml")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.Write(out); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(mode); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	return writeFileAtomic(path, out)
 }
 
 // codexTOMLServer is how Codex stores one server.

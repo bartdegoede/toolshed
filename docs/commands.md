@@ -30,7 +30,7 @@ registry, starts it and lists its tools. Pick one kind:
 | `--install` | install it right away |
 | `--force` | replace a tool with the same id |
 
-`toolshed install <id>...` installs into Claude Code and Codex: for every
+`toolshed install <id>...` installs into Claude Code, Codex and Antigravity: for every
 project, or, for a tool that's installed already, again where it is. See
 [Scope](clients.md#scope).
 
@@ -38,11 +38,11 @@ project, or, for a tool that's installed already, again where it is. See
 | --- | --- |
 | `--project` | this repository only: `.mcp.json` and `.codex/config.toml` |
 | `--user` | every project (moves a tool that's in the repository) |
-| `--client claude\|codex` | only one of them |
+| `--client claude\|codex\|antigravity` | only one of them |
 | `--set KEY=VALUE` | a value, instead of being asked (repeatable) |
 | `-y` | never ask; values come from `--set` and the environment |
 
-`toolshed import [<name>...]` adopts the servers Claude Code and Codex
+`toolshed import [<name>...]` adopts the servers your clients
 already have. `-y` uses the guessed secrets, `--dry-run` only shows what it
 would do, `--no-install` only adds them to your registry. See
 [Import](import.md).
@@ -69,7 +69,7 @@ would do, `--no-install` only adds them to your registry. See
 
 | Command | |
 | --- | --- |
-| `toolshed uninstall <id>... [--purge]` | remove from Claude Code and Codex; `--purge` also deletes its secrets |
+| `toolshed uninstall <id>... [--purge]` | remove from your clients; `--purge` also deletes its secrets |
 | `toolshed uninstall <id> --client <client> --scope <scope>` | remove one copy: from one client, at one scope, also one the client ignores here (see [Doctor](doctor.md)) |
 | `toolshed remove <id>` | uninstall and delete from your registry |
 
@@ -82,7 +82,7 @@ would do, `--no-install` only adds them to your registry. See
 | `toolshed completion bash\|zsh\|fish` | print a shell completion script |
 | `toolshed version` | print the version |
 
-Claude Code and Codex run two more, `toolshed exec` and `toolshed headers`,
+Your clients run two more, `toolshed exec` and `toolshed headers`,
 to start servers with their secrets; you don't need them yourself (see
 [Secrets](secrets.md)).
 

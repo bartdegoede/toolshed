@@ -1,8 +1,8 @@
 // Package clients registers MCP servers with the clients toolshed supports
-// (Claude Code and Codex), and reads back what each one currently has
-// configured.
+// (Claude Code, Codex and Antigravity), and reads back what each one
+// currently has configured.
 //
-// Each client is an adapter (claude.go, codex.go) behind the Client
+// Each client is an adapter (claude.go, codex.go, antigravity.go) behind the Client
 // interface. Everything outside this package works with client names and the
 // neutral Config, so supporting another client means adding an adapter here.
 //
@@ -26,8 +26,12 @@ type Client interface {
 	// Available reports whether the client is installed on this machine.
 	Available() bool
 	// Scope maps a requested scope ("user", "local" or "project") to the
-	// nearest one this client has.
+	// nearest one this client has, or "" when it has none that keeps the
+	// server out of other projects (then it's skipped, never made global).
 	Scope(requested string) string
+	// Unsupported says why the client can't run a server registered as cfg
+	// (a remote server's headers from a command, say), or "".
+	Unsupported(cfg Config) string
 	// Notes are things to know after registering a server at scope.
 	Notes(scope string) []string
 
@@ -49,7 +53,7 @@ const (
 )
 
 // adapters lists supported clients in display order.
-var adapters = []Client{claudeClient{}, codexClient{}}
+var adapters = []Client{claudeClient{}, codexClient{}, antigravityClient{}}
 
 // All lists supported client names in display order.
 var All = func() []string {
@@ -260,7 +264,10 @@ func Register(client, name string, cfg Config, scope string) error {
 	if c == nil {
 		return fmt.Errorf("unknown client %q", client)
 	}
-	scope = c.Scope(scope)
+	requested := scope
+	if scope = c.Scope(scope); scope == "" {
+		return fmt.Errorf("%s has no %s scope", c.Label(), requested)
+	}
 	here, used := registration(client, name, scope)
 	prev := here // a copy at this scope already: update that one
 	if prev == nil {

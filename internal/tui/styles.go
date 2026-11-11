@@ -32,6 +32,7 @@ var (
 	headerFg     = lipgloss.Color("233")
 	claudeColor  = lipgloss.Color("209") // Claude orange
 	codexColor   = lipgloss.Color("117") // Codex blue
+	agyColor     = lipgloss.Color("79")  // Antigravity teal
 )
 
 var (
@@ -51,8 +52,9 @@ var (
 
 // clientColors gives each client its own color for its dots.
 var clientColors = map[string]color.Color{
-	clients.Claude: claudeColor,
-	clients.Codex:  codexColor,
+	clients.Claude:      claudeColor,
+	clients.Codex:       codexColor,
+	clients.Antigravity: agyColor,
 }
 
 // clientStyle colors a client's badge.

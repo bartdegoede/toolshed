@@ -50,7 +50,7 @@ func (m model) View() tea.View {
 	var body string
 	switch m.mode {
 	case modeLoading:
-		body = "\n  " + accentStyle.Render(spinnerFrames[m.spinner]) + dimStyle.Render(" Looking for Claude Code and Codex…")
+		body = "\n  " + accentStyle.Render(spinnerFrames[m.spinner]) + dimStyle.Render(" Looking for "+clients.Labels("and")+"…")
 	case modeFatal:
 		body = "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(errorStyle.Render("✗ ")+textStyle.Render(m.fatal)+"\n\n"+dimStyle.Render("Press any key to exit."))
 	default:
@@ -82,7 +82,7 @@ func (m model) renderHeader() string {
 	// Every segment carries the bar's background: an inner Render resets
 	// styles at its end, which would otherwise punch a hole in the bar.
 	seg := lipgloss.NewStyle().Background(headerBg).Foreground(headerFg)
-	title := seg.Bold(true).Render(" ⚒ toolshed") + seg.Render("  add MCP tools to Claude Code & Codex")
+	title := seg.Bold(true).Render(" ⚒ toolshed") + seg.Render("  add MCP tools to your coding agents")
 	gap := m.width - lipgloss.Width(title) - len(ver) - 1
 	if gap < 1 {
 		gap = 1
@@ -192,7 +192,7 @@ func (m model) renderDetail() string {
 	if e == nil {
 		msg := "\n" + dimStyle.Render("No tools yet. Press ") + keyStyle.Render("a") + dimStyle.Render(" to add one.")
 		if n := m.importable(); n > 0 {
-			msg += "\n\n" + dimStyle.Render(fmt.Sprintf("Claude Code and Codex already have %d server%s that toolshed doesn't manage. Press ", n, plural(n))) + keyStyle.Render("m") + dimStyle.Render(" to import them.")
+			msg += "\n\n" + dimStyle.Render(fmt.Sprintf("Your clients already have %d server%s that toolshed doesn't manage. Press ", n, plural(n))) + keyStyle.Render("m") + dimStyle.Render(" to import them.")
 		}
 		return msg
 	}

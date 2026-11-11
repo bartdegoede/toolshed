@@ -95,7 +95,7 @@ func Moves(e *registry.Entry, inst *clients.Installation, opts InstallOptions) [
 	}
 	var out []Move
 	for _, c := range Targets(e, opts) {
-		if from, to := inst.Scope(c), opts.scopeFor(c); from != "" && from != to {
+		if from, to := inst.Scope(c), opts.scopeFor(c); from != "" && to != "" && from != to {
 			out = append(out, Move{Client: c, From: from, To: to})
 		}
 	}
@@ -154,14 +154,39 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error
 			return Result{}, fmt.Errorf("%s: no OS keyring, so %s would be written into the repository's config in plain text; install it for your user instead", e.ID, in.Key)
 		}
 	}
-	moves := Moves(e, clients.Detect()[e.ID], opts)
+	before := clients.Detect()[e.ID]
+	moves := Moves(e, before, opts)
 	var res Result
 	var errs []error
 	for _, c := range targets {
 		scope := opts.scopeFor(c)
+		if scope == "" {
+			// The client has nothing like the scope asked for (Antigravity
+			// and Claude Code's private "local"): skip it rather than make
+			// the tool global or shared, and take it out if it's somewhere
+			// else there now, as moving it would.
+			asked := opts.Scope
+			if s := opts.Scopes[c]; s != "" {
+				asked = s
+			}
+			if before != nil && before.Has(c) {
+				if err := clients.Unregister(c, e.ID, before.Scope(c)); err != nil {
+					errs = append(errs, fmt.Errorf("%s: %w", c, err))
+					continue
+				}
+				res.Notes = append(res.Notes, fmt.Sprintf("%s has no %s scope, so %s was removed from it", clients.Label(c), asked, e.ID))
+				continue
+			}
+			res.Notes = append(res.Notes, fmt.Sprintf("%s has no %s scope, so %s isn't installed there", clients.Label(c), asked, e.ID))
+			continue
+		}
 		cfg, err := BuildConfig(e, vals, scope)
 		if err != nil {
 			return res, err
+		}
+		if why := clients.Get(c).Unsupported(cfg); why != "" {
+			res.Notes = append(res.Notes, fmt.Sprintf("%s isn't installed in %s: %s", e.ID, clients.Label(c), why))
+			continue
 		}
 		if err := clients.Register(c, e.ID, cfg, scope); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", c, err))
@@ -174,6 +199,9 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error
 			}
 		}
 		res.Notes = append(res.Notes, clients.Get(c).Notes(scope)...)
+	}
+	if len(res.Clients) == 0 && len(errs) == 0 {
+		return res, fmt.Errorf("%s couldn't be installed anywhere: %s", e.ID, strings.Join(res.Notes, "; "))
 	}
 	return res, errors.Join(errs...)
 }

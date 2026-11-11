@@ -47,7 +47,7 @@ type installArgs struct {
 
 func newMCPServer() *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "toolshed", Version: Version}, &mcp.ServerOptions{
-		Instructions: "toolshed manages the MCP servers available to Claude Code and Codex. " +
+		Instructions: "toolshed manages the MCP servers available to " + clients.Labels("and") + ". " +
 			"Use list_servers to see what's available and installed, add_server to register a new one, " +
 			"inspect_server to start it and see its tools, and install_server to make it available. " +
 			"Servers you add are pending until the user approves them in a terminal (`toolshed approve <id>`) " +
@@ -169,7 +169,7 @@ func newMCPServer() *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "install_server",
-		Description: "Install a server from the toolshed into Claude Code and Codex. Fails if it needs secrets the user hasn't entered yet.",
+		Description: "Install a server from the toolshed into " + clients.Labels("and") + ". Fails if it needs secrets the user hasn't entered yet.",
 		Annotations: changes,
 	}, func(_ context.Context, _ *mcp.CallToolRequest, a installArgs) (*mcp.CallToolResult, any, error) {
 		reg, err := loadRegistry()
@@ -227,7 +227,7 @@ func newMCPServer() *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "uninstall_server",
-		Description: "Remove a server from Claude Code and Codex. It stays in the toolshed and its secrets are kept.",
+		Description: "Remove a server from " + clients.Labels("and") + ". It stays in the toolshed and its secrets are kept.",
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: ptr(true)},
 	}, func(_ context.Context, _ *mcp.CallToolRequest, a idArgs) (*mcp.CallToolResult, any, error) {
 		reg, err := loadRegistry()

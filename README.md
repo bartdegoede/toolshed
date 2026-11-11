@@ -1,7 +1,7 @@
 <h1 align="center">⚒ toolshed</h1>
 
 <p align="center">
-  <b>Add any MCP server to Claude Code and Codex in seconds.</b><br>
+  <b>Add any MCP server to Claude Code, Codex and Antigravity in seconds.</b><br>
   One TUI, one command, secrets in your keychain instead of your dotfiles.
 </p>
 
@@ -20,8 +20,8 @@ toolshed does that part for you:
 - **Add anything.** An npm or Python package, any CLI that speaks MCP, or a
   remote URL. `toolshed add` starts the server right away and shows you the
   tools it offers, so you know it works before your agent tries it.
-- **Install everywhere.** One keypress registers the tool with Claude Code
-  *and* Codex, for every project or just the current repo.
+- **Install everywhere.** One keypress registers the tool with Claude Code,
+  Codex *and* Antigravity, for every project or just the current repo.
 - **Keep secrets secret.** API tokens go to the macOS Keychain or Linux Secret
   Service. Your agent's config only says `toolshed exec jira`, and the token
   is injected when the server starts.
@@ -79,10 +79,10 @@ The full docs are at **[toolshed.run](https://toolshed.run)**, and in
 - [The registry](docs/registry.md): your tools in one YAML file, and sharing it with a team
 - [Secrets](docs/secrets.md): tokens in your keychain, for local and remote servers
 - [Import](docs/import.md): adopt the servers you already set up by hand
-- [Your agent](docs/agents.md): let Claude Code or Codex add servers themselves
+- [Your agent](docs/agents.md): let your coding agent add servers itself
 - [Updates and versions](docs/updates.md): pinned packages, upgrades, registry changes
 - [Doctor](docs/doctor.md): check that every installed tool works
-- [Claude Code and Codex](docs/clients.md): where tools are installed, and how
+- [Clients](docs/clients.md): Claude Code, Codex and Antigravity: where tools are installed, and how
 - [Build your own server](docs/build-a-server.md)
 
 ## Development
