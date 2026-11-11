@@ -20,6 +20,7 @@ import (
 func runInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	project := fs.Bool("project", false, "install for this repository only (.mcp.json for Claude Code, .codex/config.toml for Codex)")
+	user := fs.Bool("user", false, "install for every project (the default for a new tool)")
 	client := fs.String("client", "", "only install into "+clients.Names("or"))
 	yes := fs.Bool("y", false, "never prompt; take values from --set and the environment")
 	var set multi
@@ -34,6 +35,9 @@ func runInstall(args []string) error {
 	overrides, err := keyValues("set", set)
 	if err != nil {
 		return err
+	}
+	if *project && *user {
+		return usagef("--project and --user don't go together")
 	}
 	opts := shed.InstallOptions{Scope: "user"}
 	if *project {
@@ -59,7 +63,13 @@ func runInstall(args []string) error {
 	for _, id := range ids {
 		e, err := lookup(reg, id)
 		if err == nil {
-			err = installOne(e, installed[id], overrides, opts, *yes, interactive)
+			o := opts
+			if inst := installed[id]; inst != nil && !*project && !*user {
+				// Installed already: again where it is. --project / --user move it.
+				o = shed.KeepScopes(inst)
+				o.Clients = opts.Clients
+			}
+			err = installOne(e, installed[id], overrides, o, *yes, interactive)
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s %s: %v\n", red("✗"), id, err)

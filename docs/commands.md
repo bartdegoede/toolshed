@@ -30,11 +30,14 @@ registry, starts it and lists its tools. Pick one kind:
 | `--install` | install it right away |
 | `--force` | replace a tool with the same id |
 
-`toolshed install <id>...` installs into Claude Code and Codex.
+`toolshed install <id>...` installs into Claude Code and Codex: for every
+project, or, for a tool that's installed already, again where it is. See
+[Scope](clients.md#scope).
 
 | Flag | |
 | --- | --- |
 | `--project` | this repository only: `.mcp.json` and `.codex/config.toml` |
+| `--user` | every project (moves a tool that's in the repository) |
 | `--client claude\|codex` | only one of them |
 | `--set KEY=VALUE` | a value, instead of being asked (repeatable) |
 | `-y` | never ask; values come from `--set` and the environment |

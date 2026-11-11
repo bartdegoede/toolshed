@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bartdegoede/toolshed/internal/clients"
+	"github.com/bartdegoede/toolshed/internal/clients/clienttest"
 	"github.com/bartdegoede/toolshed/internal/registry"
 )
 
@@ -75,5 +77,48 @@ func TestApproveCommand(t *testing.T) {
 	reg, _ := registry.Load()
 	if reg.Get("agentic").Pending {
 		t.Fatal("still pending after approve -y")
+	}
+}
+
+// An installed tool is installed again where it is; --user and --project
+// move it, so it's only at the new scope afterwards.
+func TestInstallScopeFlags(t *testing.T) {
+	home := sandbox(t)
+	repo := filepath.Join(home, "repo") // not HOME: ~/.codex would be the repo's .codex
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	t.Chdir(repo)
+	if err := registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh"}); err != nil {
+		t.Fatal(err)
+	}
+	at := func(scope string) map[string]string {
+		return map[string]string{clients.Claude: scope, clients.Codex: scope}
+	}
+	steps := []struct {
+		args []string
+		want map[string]string
+		note string
+	}{
+		{[]string{"hi", "-y", "--project"}, at("project"), ""},
+		{[]string{"hi", "-y"}, at("project"), ""}, // stays
+		{[]string{"hi", "-y", "--user"}, at("user"), "moved from project to user scope"},
+		{[]string{"hi", "-y"}, at("user"), ""},
+		{[]string{"hi", "-y", "--project"}, at("project"), "moved from user to project scope"},
+	}
+	for _, st := range steps {
+		out, err := captureStdout(t, func() error { return runInstall(st.args) })
+		if err != nil {
+			t.Fatalf("install %v: %v", st.args, err)
+		}
+		if got := clienttest.Placements(t, "hi", repo); !maps.Equal(got, st.want) {
+			t.Fatalf("install %v: registered at %v, want %v", st.args, got, st.want)
+		}
+		if st.note != "" && !strings.Contains(out, st.note) {
+			t.Fatalf("install %v should say it moved:\n%s", st.args, out)
+		}
+	}
+	if err := runInstall([]string{"hi", "--user", "--project"}); err == nil {
+		t.Fatal("--user with --project should be refused")
 	}
 }

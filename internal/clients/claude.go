@@ -52,14 +52,17 @@ func (claudeClient) detect(root string) map[string]Registration {
 }
 
 // register is remove-then-add, carrying over any keys toolshed doesn't
-// model (a "timeout", say). If the add fails, the previous registration is
-// put back.
+// model (a "timeout", say), also when it moves to another scope. If the add
+// fails, the previous registration at that scope is put back.
 func (claudeClient) register(name string, cfg Config, scope string, prev *Registration) error {
-	var old map[string]json.RawMessage
-	if prev != nil && prev.Scope == scope {
-		old = prev.raw
+	var carry, old map[string]json.RawMessage
+	if prev != nil {
+		carry = prev.raw
+		if prev.Scope == scope {
+			old = prev.raw
+		}
 	}
-	data, err := claudeJSON(cfg, old)
+	data, err := claudeJSON(cfg, carry)
 	if err != nil {
 		return err
 	}

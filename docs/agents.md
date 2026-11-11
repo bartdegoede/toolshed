@@ -30,6 +30,10 @@ API tokens. So the agent's reach is limited on purpose:
   a token written in.
 - **It can't replace a tool you have.** A replacement would inherit that
   tool's secrets from the keyring.
+- **It can't move a tool.** `install_server` reinstalls an installed tool
+  where it is; asking for another scope is refused, because moving a tool
+  out of the repository changes config your teammates may share. You move
+  it with `toolshed install <id> --user` or `--project`.
 - **It can't accept registry changes.** If a tool's registry entry now runs
   something different from what's installed, the agent can't start or
   re-install it; you review the change with `toolshed update <id>`.

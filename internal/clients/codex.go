@@ -65,16 +65,33 @@ func (codexClient) detect(root string) map[string]Registration {
 	return found
 }
 
+// register edits the server in place. Moving it to another scope copies its
+// tables there first, so settings toolshed doesn't manage (timeouts, tool
+// approvals) move with it; Register then removes the old one.
 func (c codexClient) register(name string, cfg Config, scope string, prev *Registration) error {
 	path, err := codexConfigPath(scope)
 	if err != nil {
 		return err
 	}
 	legacy := ""
-	if prev != nil && prev.Scope == c.Scope(scope) {
+	var seed []byte
+	if prev != nil {
 		legacy = prev.Key
+		if prev.Scope != c.Scope(scope) {
+			from, err := codexConfigPath(prev.Scope)
+			if err != nil {
+				return err
+			}
+			doc, err := os.ReadFile(from)
+			if err != nil {
+				return err
+			}
+			if seed, err = extractCodexServer(doc, prev.Key); err != nil {
+				return fmt.Errorf("can't move it out of %s: %w", from, err)
+			}
+		}
 	}
-	return writeCodexServer(path, name, legacy, codexServerFrom(cfg))
+	return writeCodexServer(path, name, legacy, seed, codexServerFrom(cfg))
 }
 
 func (codexClient) unregister(name, scope string, prev *Registration) error {
@@ -86,7 +103,7 @@ func (codexClient) unregister(name, scope string, prev *Registration) error {
 	if prev != nil {
 		legacy = prev.Key
 	}
-	return writeCodexServer(path, name, legacy, nil)
+	return writeCodexServer(path, name, legacy, nil, nil)
 }
 
 // CodexHome is $CODEX_HOME, or ~/.codex.

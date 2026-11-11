@@ -78,6 +78,30 @@ func KeepScopes(inst *clients.Installation) InstallOptions {
 	return opts
 }
 
+// Move is a client in which an install would move a tool to another scope.
+type Move struct {
+	Client, From, To string
+}
+
+// Moves returns the clients in which installing e with opts would move it
+// from where inst has it to another scope. Install does that (see
+// clients.Register); front ends use this to describe it, or refuse it.
+func Moves(e *registry.Entry, inst *clients.Installation, opts InstallOptions) []Move {
+	if inst == nil {
+		return nil
+	}
+	if opts.Scope == "" {
+		opts.Scope = "user"
+	}
+	var out []Move
+	for _, c := range Targets(e, opts) {
+		if from, to := inst.Scope(c), opts.scopeFor(c); from != "" && from != to {
+			out = append(out, Move{Client: c, From: from, To: to})
+		}
+	}
+	return out
+}
+
 // Result is what Install did.
 type Result struct {
 	Clients []string // the clients it's now registered in
@@ -130,6 +154,7 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error
 			return Result{}, fmt.Errorf("%s: no OS keyring, so %s would be written into the repository's config in plain text; install it for your user instead", e.ID, in.Key)
 		}
 	}
+	moves := Moves(e, clients.Detect()[e.ID], opts)
 	var res Result
 	var errs []error
 	for _, c := range targets {
@@ -143,6 +168,11 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error
 			continue
 		}
 		res.Clients = append(res.Clients, c)
+		for _, mv := range moves {
+			if mv.Client == c {
+				res.Notes = append(res.Notes, fmt.Sprintf("%s: moved from %s to %s scope", clients.Label(c), mv.From, mv.To))
+			}
+		}
 		res.Notes = append(res.Notes, clients.Get(c).Notes(scope)...)
 	}
 	return res, errors.Join(errs...)

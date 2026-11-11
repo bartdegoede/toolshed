@@ -336,12 +336,66 @@ func tomlString(s string) string {
 	return b.String()
 }
 
+// extractCodexServer returns the text of a server's tables (its own and its
+// subtables, such as [mcp_servers.<key>.tools.search]), to carry its
+// settings to another config file when it moves scope.
+func extractCodexServer(doc []byte, key string) ([]byte, error) {
+	tables, kvs, err := parseTOMLLayout(doc)
+	if err != nil {
+		return nil, err
+	}
+	main := []string{"mcp_servers", key}
+	for _, kv := range kvs {
+		full := append(append([]string{}, kv.table...), kv.key...)
+		if len(kv.key) > 0 && !hasPrefix(kv.table, main) && hasPrefix(full, main) {
+			return nil, fmt.Errorf("%w: mcp_servers.%s isn't a [mcp_servers.%s] table", errCodexLayout, key, key)
+		}
+	}
+	var parts [][]byte
+	for _, t := range tables {
+		if hasPrefix(t.path, main) {
+			parts = append(parts, bytes.TrimRight(doc[t.headerStart:t.bodyEnd], "\n"))
+		}
+	}
+	if len(parts) == 0 {
+		return nil, nil
+	}
+	return append(bytes.Join(parts, []byte("\n\n")), '\n'), nil
+}
+
+// hasCodexServer reports whether doc has a table for the server under name
+// or legacy.
+func hasCodexServer(doc []byte, name, legacy string) bool {
+	tables, _, err := parseTOMLLayout(doc)
+	if err != nil {
+		return true // let editCodexServer report it
+	}
+	for _, t := range tables {
+		if hasPrefix(t.path, []string{"mcp_servers", name}) || legacy != "" && hasPrefix(t.path, []string{"mcp_servers", legacy}) {
+			return true
+		}
+	}
+	return false
+}
+
 // writeCodexServer applies editCodexServer to a config file, checks that the
 // result parses and says what was intended, and replaces the file atomically.
-func writeCodexServer(path, name, legacy string, s *codexServer) error {
+// seed, when the file doesn't have the server yet, is its tables from another
+// config file (see extractCodexServer): they're added first, so the settings
+// toolshed doesn't manage move with it.
+func writeCodexServer(path, name, legacy string, seed []byte, s *codexServer) error {
 	doc, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
+	}
+	if len(seed) > 0 && !hasCodexServer(doc, name, legacy) {
+		if len(doc) > 0 && !bytes.HasSuffix(doc, []byte("\n")) {
+			doc = append(doc, '\n')
+		}
+		if len(bytes.TrimSpace(doc)) > 0 {
+			doc = append(doc, '\n')
+		}
+		doc = append(doc, seed...)
 	}
 	out, err := editCodexServer(doc, name, legacy, s)
 	if err != nil {

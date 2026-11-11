@@ -217,12 +217,26 @@ func Detect() map[string]*Installation {
 // Register adds (or replaces) a server in one client at a scope, keeping the
 // settings toolshed doesn't manage. scope is one the client has (see
 // Client.Scope).
+//
+// A server lives at one scope per client: registering it at another scope
+// moves it, settings and all, and removes the old registration once the new
+// one is in place. Otherwise the old one would linger where Detect, which
+// reports one scope per client, doesn't show it and uninstall doesn't reach.
 func Register(client, name string, cfg Config, scope string) error {
 	c := Get(client)
 	if c == nil {
 		return fmt.Errorf("unknown client %q", client)
 	}
-	return c.register(name, cfg, scope, current(client, name))
+	prev := current(client, name)
+	if err := c.register(name, cfg, scope, prev); err != nil {
+		return err
+	}
+	if prev != nil && prev.Scope != c.Scope(scope) {
+		if err := c.unregister(name, prev.Scope, prev); err != nil {
+			return fmt.Errorf("registered at %s scope, but removing the %s one failed: %w", c.Scope(scope), prev.Scope, err)
+		}
+	}
+	return nil
 }
 
 // Unregister removes a server from one client at a scope.
