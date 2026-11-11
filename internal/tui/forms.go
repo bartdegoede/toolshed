@@ -173,7 +173,8 @@ func newInstallForm(e *registry.Entry, vals shed.Values, width int) (*huh.Form, 
 		}
 		fields = append(fields, f)
 	}
-	if root := clients.GitRoot(); root != "" && e.SupportsClient(clients.Claude) {
+	// Every client has a project scope (Claude: .mcp.json, Codex: .codex/config.toml).
+	if root := clients.GitRoot(); root != "" {
 		fields = append(fields, huh.NewSelect[string]().
 			Title("Install for").
 			Options(
