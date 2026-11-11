@@ -30,9 +30,9 @@ registry, starts it and lists its tools. Pick one kind:
 | `--install` | install it right away |
 | `--force` | replace a tool with the same id |
 
-`toolshed install <id>...` installs into Claude Code, Codex and Antigravity: for every
-project, or, for a tool that's installed already, again where it is. See
-[Scope](clients.md#scope).
+`toolshed install <id>...` installs into Claude Code, Codex and Antigravity:
+for every project, or, for a tool that's installed already, again where it
+is. See [Scope](clients.md#scope).
 
 | Flag | |
 | --- | --- |

@@ -161,3 +161,14 @@ func TestAntigravityMoveCarriesSettings(t *testing.T) {
 		t.Fatal("still at user scope")
 	}
 }
+
+// One entry Antigravity's format doesn't allow doesn't hide the others.
+func TestAntigravityDetectSkipsOddEntries(t *testing.T) {
+	path := agSandbox(t)
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	_ = os.WriteFile(path, []byte(`{"mcpServers": {"odd": {"args": "not a list"}, "fine": {"command": "x"}}}`), 0o600)
+	got := Detect()
+	if got["fine"] == nil || got["odd"] != nil {
+		t.Fatalf("detect: %v", got)
+	}
+}

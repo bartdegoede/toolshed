@@ -74,8 +74,17 @@ func editJSONServer(doc []byte, section, name string, set []jsonKV, drop []strin
 
 	srv := member(sobj, name)
 	if srv == nil {
-		appendMember(sobj, name, &hujson.Object{}, unit, 2)
-		srv = member(sobj, name)
+		// A new server: render it whole, in the style around it.
+		indent := strings.Repeat(unit, 2)
+		if len(sobj.Members) > 0 {
+			indent = lineIndent(sobj, "")
+		}
+		v, err := renderObject(set, indent, unit, multiline(sobj))
+		if err != nil {
+			return nil, err
+		}
+		appendMember(sobj, name, v, unit, 2)
+		return root.Pack(), nil
 	}
 	obj, ok := srv.Value.(*hujson.Object)
 	if !ok {
@@ -149,26 +158,32 @@ func indentUnit(top *hujson.Object) string {
 }
 
 // appendMember adds name: val at the end of obj, at nesting depth (1 for
-// the top-level object's members), in the style of obj's other members.
+// the top-level object's members), in the style of obj's other members: on
+// its own line, indented like them (not copying a comment above the last
+// one), or after a space in a one-line object. val is a Go value, or a
+// hujson.Value / *hujson.Object already rendered.
 func appendMember(obj *hujson.Object, name string, val any, unit string, depth int) {
 	indent := strings.Repeat(unit, depth)
-	multi := true
+	multi := multiline(obj)
 	before := []byte("\n" + indent)
-	if n := len(obj.Members); n > 0 {
-		multi = multiline(obj)
-		before = append([]byte(nil), obj.Members[n-1].Name.BeforeExtra...)
-		if multi {
-			// Not a comment that was above the last member.
-			before = []byte("\n" + lineIndent(obj, ""))
-			indent = lineIndent(obj, "")
+	switch {
+	case len(obj.Members) == 0:
+		if len(bytes.TrimSpace(obj.AfterExtra)) == 0 { // keep a comment in "{ /* … */ }"
+			obj.AfterExtra = []byte("\n" + strings.Repeat(unit, depth-1))
 		}
-	} else if len(bytes.TrimSpace(obj.AfterExtra)) == 0 { // keep a comment in "{ /* … */ }"
-		obj.AfterExtra = []byte("\n" + strings.Repeat(unit, depth-1))
+	case multi:
+		indent = lineIndent(obj, "")
+		before = []byte("\n" + indent)
+	default:
+		before = []byte(" ")
 	}
 	var v hujson.Value
-	if o, ok := val.(*hujson.Object); ok {
-		v = hujson.Value{Value: o}
-	} else {
+	switch val := val.(type) {
+	case *hujson.Object:
+		v = hujson.Value{Value: val}
+	case hujson.Value:
+		v = val
+	default:
 		v, _ = jsonValue(val, indent, unit, multi)
 	}
 	v.BeforeExtra = []byte(" ")
@@ -196,6 +211,47 @@ func removeMember(obj *hujson.Object, i int) {
 	} else if last {
 		obj.Members[n-1].Value.AfterExtra = after
 	}
+}
+
+// renderObject renders the keys of a new object, in order: one per line
+// (indent is the indentation of the line it starts on) when multi, else on
+// one line.
+func renderObject(kvs []jsonKV, indent, unit string, multi bool) (hujson.Value, error) {
+	var b strings.Builder
+	b.WriteString("{")
+	for i, kv := range kvs {
+		key, _ := json.Marshal(kv.Key)
+		var val []byte
+		var err error
+		if multi {
+			val, err = json.MarshalIndent(kv.Val, indent+unit, unit)
+		} else {
+			val, err = json.Marshal(kv.Val)
+		}
+		if err != nil {
+			return hujson.Value{}, err
+		}
+		switch {
+		case multi:
+			if i > 0 {
+				b.WriteString(",")
+			}
+			b.WriteString("\n" + indent + unit)
+		case i > 0:
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(&b, "%s: %s", key, val)
+	}
+	if multi && len(kvs) > 0 {
+		b.WriteString("\n" + indent)
+	}
+	b.WriteString("}")
+	v, err := hujson.Parse([]byte(b.String()))
+	if err != nil {
+		return hujson.Value{}, err
+	}
+	v.BeforeExtra = []byte(" ")
+	return v, nil
 }
 
 // jsonValue renders val as a hujson value: indented like its surroundings

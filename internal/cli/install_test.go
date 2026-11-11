@@ -163,3 +163,24 @@ func TestInstallSkipsWhatAntigravityCantDo(t *testing.T) {
 		t.Fatalf("expected a failure, got %v", err)
 	}
 }
+
+// A tool Antigravity had (static headers, no keyring) whose registry entry
+// now gets its headers from a command: reinstalling takes the stale copy out
+// of Antigravity, rather than leaving it there for good.
+func TestReinstallRemovesWhatAntigravityCantRunAnymore(t *testing.T) {
+	home := sandbox(t)
+	agy := filepath.Join(home, ".gemini", "config", "mcp_config.json")
+	_ = os.MkdirAll(filepath.Dir(agy), 0o755)
+	_ = os.WriteFile(agy, []byte(`{"mcpServers": {"hosted": {"serverUrl": "https://h.example/mcp", "headers": {"Authorization": "Bearer old"}}}}`), 0o600)
+	_ = registry.AddUserEntry(registry.Entry{ID: "hosted", URL: "https://h.example/mcp", HeaderCmd: "echo {}"})
+	out, err := captureStdout(t, func() error { return runInstall([]string{"hosted", "-y"}) })
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, "hosted was removed from Antigravity: it can't get a server's headers from a command") {
+		t.Fatalf("should say it was removed:\n%s", out)
+	}
+	if data, _ := os.ReadFile(agy); strings.Contains(string(data), "hosted") {
+		t.Fatalf("stale copy left in Antigravity:\n%s", data)
+	}
+}

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -68,5 +70,31 @@ func TestAskAndMask(t *testing.T) {
 	}
 	if got := mask("ghp_abcdefghijklmnop"); got != "ghp_… (20 chars)" || mask("short") != "****" {
 		t.Errorf("mask: %q", got)
+	}
+}
+
+// Importing a remote server with a token that only Antigravity has: toolshed
+// would register it through a headers command, which Antigravity can't run,
+// so Antigravity's registration is left exactly as it is and the server is
+// only added to the registry, instead of failing (or removing it).
+func TestImportLeavesWhatAntigravityCantTake(t *testing.T) {
+	home := sandbox(t)
+	secrets.UseMockForTest(true)
+	agy := filepath.Join(home, ".gemini", "config", "mcp_config.json")
+	before := `{"mcpServers": {"tok": {"serverUrl": "https://t.example/mcp", "headers": {"Authorization": "Bearer sk-live-abcdefghijkl"}}}}`
+	_ = os.MkdirAll(filepath.Dir(agy), 0o755)
+	_ = os.WriteFile(agy, []byte(before), 0o600)
+	out, err := captureStdout(t, func() error { return runImport([]string{"tok", "-y"}) })
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, "Antigravity's registration is left as it is") || !strings.Contains(out, "only added to your registry") {
+		t.Fatalf("should say what it did:\n%s", out)
+	}
+	if reg, _ := registry.Load(); reg.Get("tok") == nil {
+		t.Fatal("not added to the registry")
+	}
+	if data, _ := os.ReadFile(agy); string(data) != before {
+		t.Fatalf("Antigravity's registration changed:\n%s", data)
 	}
 }

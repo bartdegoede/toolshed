@@ -129,6 +129,12 @@ func TestEditJSONServer(t *testing.T) {
 `,
 		},
 		{
+			name: "a one-line file stays on one line",
+			in:   `{"mcpServers": {"a": {"command": "x"}}}`,
+			srv:  "b", set: stdio("y", "1"),
+			want: `{"mcpServers": {"a": {"command": "x"}, "b": {"command": "y", "args": ["1"]}}}`,
+		},
+		{
 			name: "remove the last server, keeping a trailing comma",
 			in: `{
   "mcpServers": {

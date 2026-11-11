@@ -114,3 +114,28 @@ func TestImportStaticHeaders(t *testing.T) {
 		t.Fatalf("imported entry is invalid: %v", err)
 	}
 }
+
+// usesHeadersHelper predicts, without storing secrets, what BuildConfig
+// does: the two must agree, or import would leave or remove the wrong
+// registrations.
+func TestUsesHeadersHelperMatchesBuildConfig(t *testing.T) {
+	entries := map[string]*registry.Entry{
+		"stdio":         {ID: "a", Command: "sh"},
+		"plain remote":  {ID: "b", URL: "https://b.example/mcp"},
+		"header_cmd":    {ID: "c", URL: "https://c.example/mcp", HeaderCmd: "gh auth token"},
+		"secret header": {ID: "d", URL: "https://d.example/mcp", Headers: map[string]string{"Authorization": "Bearer ${D_TOKEN}"}, Inputs: []registry.Input{{Key: "D_TOKEN", Secret: true}}},
+		"value header":  {ID: "e", URL: "https://e.example/mcp", Headers: map[string]string{"X-Team": "${TEAM}"}, Inputs: []registry.Input{{Key: "TEAM"}}},
+	}
+	for _, keyring := range []bool{true, false} {
+		secrets.UseMockForTest(keyring)
+		for name, e := range entries {
+			cfg, err := BuildConfig(e, Values{"D_TOKEN": "t", "TEAM": "core"}, "user")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := usesHeadersHelper(e), cfg.HeadersHelper != ""; got != want {
+				t.Errorf("%s (keyring %v): usesHeadersHelper = %v, BuildConfig made a helper: %v", name, keyring, got, want)
+			}
+		}
+	}
+}

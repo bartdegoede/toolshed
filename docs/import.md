@@ -2,9 +2,9 @@
 
 <!-- summary: Adopt the servers you already set up by hand -->
 
-If you've been adding MCP servers to Claude Code, Codex or Antigravity by hand, their
-tokens are probably sitting in `~/.claude.json` and `~/.codex/config.toml`
-in plain text.
+If you've been adding MCP servers to Claude Code, Codex or Antigravity by
+hand, their tokens are probably sitting in `~/.claude.json`,
+`~/.codex/config.toml` and `~/.gemini/config/mcp_config.json` in plain text.
 
 ```sh
 toolshed import
@@ -45,6 +45,10 @@ it runs, and its values masked. Press `enter`, tick which values are secrets
 - If your clients run different things under the same name, the first
   one's (Claude Code, then Codex, then Antigravity) is imported and the
   others are left alone.
+- A remote server with a token that Antigravity has is left as it is there:
+  toolshed would register it with its token in your keyring, through a
+  command, which Antigravity can't run. If only Antigravity has it, it's
+  only added to your registry.
 - Remote servers that send fixed headers (`Authorization: Bearer …`) get
   those headers as inputs, and the credential ones move to the keyring. A
   Codex server that reads its token from your environment

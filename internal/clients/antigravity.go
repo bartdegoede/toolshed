@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -89,12 +90,16 @@ func (antigravityClient) detect(root string) []found {
 	var out []found
 	read := func(path, scope string) {
 		var f struct {
-			MCPServers map[string]antigravityServer `json:"mcpServers"`
+			MCPServers map[string]json.RawMessage `json:"mcpServers"`
 		}
 		if readJSONC(path, &f) != nil {
 			return
 		}
-		for name, s := range f.MCPServers {
+		for name, raw := range f.MCPServers {
+			var s antigravityServer
+			if json.Unmarshal(raw, &s) != nil {
+				continue // one odd entry doesn't hide the others
+			}
 			out = append(out, found{name, Registration{Scope: scope, Key: name, Config: s.config()}})
 		}
 	}

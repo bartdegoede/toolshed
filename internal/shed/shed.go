@@ -185,6 +185,16 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error
 			return res, err
 		}
 		if why := clients.Get(c).Unsupported(cfg); why != "" {
+			// An older registration there would be stale (and doctor would
+			// flag it for good): take it out, as for a missing scope.
+			if before != nil && before.Has(c) {
+				if err := clients.Unregister(c, e.ID, before.Scope(c)); err != nil {
+					errs = append(errs, fmt.Errorf("%s: %w", c, err))
+					continue
+				}
+				res.Notes = append(res.Notes, fmt.Sprintf("%s was removed from %s: %s", e.ID, clients.Label(c), why))
+				continue
+			}
 			res.Notes = append(res.Notes, fmt.Sprintf("%s isn't installed in %s: %s", e.ID, clients.Label(c), why))
 			continue
 		}

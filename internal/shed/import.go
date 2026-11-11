@@ -249,9 +249,25 @@ func (im *Import) Apply(install bool) (ImportResult, error) {
 		res.Notes = append(res.Notes, e.Command+" isn't on PATH, so it's only added to your registry")
 		install = false
 	}
+	opts := KeepScopes(im.Inst)
+	opts.Clients = nil
+	for _, c := range im.Clients {
+		if !install {
+			break
+		}
+		// A client that can't take it as toolshed would register it keeps
+		// its own registration: Install would otherwise remove it.
+		if why := unsupportedBy(&e, c); why != "" {
+			res.Notes = append(res.Notes, fmt.Sprintf("%s's registration is left as it is: %s", clients.Label(c), why))
+			continue
+		}
+		opts.Clients = append(opts.Clients, c)
+	}
+	if install && len(opts.Clients) == 0 {
+		res.Notes = append(res.Notes, "so it's only added to your registry")
+		install = false
+	}
 	if install {
-		opts := KeepScopes(im.Inst)
-		opts.Clients = im.Clients
 		r, err := Install(&e, vals, opts)
 		if err != nil {
 			return res, err
@@ -259,7 +275,7 @@ func (im *Import) Apply(install bool) (ImportResult, error) {
 		res.Installed = true
 		res.Notes = append(res.Notes, r.Notes...)
 		if im.Rename {
-			for _, c := range im.Clients {
+			for _, c := range opts.Clients {
 				if err := clients.Unregister(c, im.Name, im.Inst.Scope(c)); err != nil {
 					res.Notes = append(res.Notes, fmt.Sprintf("couldn't remove the old %s from %s: %v", im.Name, c, err))
 				}

@@ -73,7 +73,11 @@ is replaced.
 
 Antigravity can't run a command to get a server's headers, so a remote tool
 whose headers come from a command (`header_cmd`, or secrets in its headers,
-which toolshed reads from your keyring that way) isn't installed there; toolshed says so and installs it into the others.
+which toolshed reads from your keyring that way) isn't installed there:
+toolshed says so and installs it into the others. If Antigravity had an
+older registration of it, that one is removed, because it no longer matches
+the tool. `toolshed import` leaves such a server in Antigravity as it is
+(see [Import](import.md)).
 
 ## After installing
 
