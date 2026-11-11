@@ -9,7 +9,7 @@ the e2e suite.
 
 ```sh
 just test       # unit tests (race detector on)
-just test-e2e   # real binary + real example server against mock claude/codex
+just test-e2e   # real binary + real example server against mock claude/codex/agy
 just lint       # golangci-lint v2
 ```
 
