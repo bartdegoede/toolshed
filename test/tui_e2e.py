@@ -85,9 +85,11 @@ def wait_for(desc, check, timeout=15):
 class TUI:
     KEYS = {"enter": b"\r", "left": b"\x1b[D", "down": b"\x1b[B", "space": b" ", "esc": b"\x1b"}
 
-    def __init__(self):
+    def __init__(self, cwd=None):
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
+            if cwd:
+                os.chdir(cwd)
             os.execvpe(TS, [TS], dict(os.environ, TERM="xterm-256color", NO_COLOR=""))
         fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
         self.out = b""
@@ -187,6 +189,37 @@ reg = registry()
 block = reg[reg.index("id: byhand"):]
 check("import: the unticked value isn't a secret", "secret: true" not in block, block)
 
+check("q quits", tui.quit())
+
+# In a git repo, "This repo only" works for a tool only Codex can run, too.
+# The repo is below HOME so its .codex/config.toml isn't ~/.codex's.
+repo = os.path.join(HOME, "repo")
+sh("git", "init", "-q", repo)
+with open(REGISTRY, "a") as f:
+    f.write("  - id: cxonly\n    command: ping-mcp\n    clients: [codex]\n")
+tui = TUI(cwd=repo)
+tui.screen_has("YOUR TOOLS")
+tui.press("down")  # agentic, byhand, cxonly: the new tool is last
+tui.press("down")
+tui.screen_has("Codex only")
+tui.press("i")
+if tui.screen_has("Install for"):
+    ok("this repo: the form asks where, for a Codex-only tool")
+    tui.press("down", "enter")
+else:
+    bad("this repo: the form asks where, for a Codex-only tool", tui.text()[-300:])
+
+
+def repo_codex_has(name):
+    try:
+        with open(os.path.join(repo, ".codex", "config.toml")) as f:
+            return f"[mcp_servers.{name}]" in f.read()
+    except FileNotFoundError:
+        return False
+
+
+wait_for("this repo: in the repo's .codex/config.toml", lambda: repo_codex_has("cxonly"))
+check("this repo: not in ~/.codex/config.toml", not codex_has("cxonly"))
 check("q quits", tui.quit())
 
 print(f"\n{passed} passed, {failed} failed")

@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -118,6 +120,41 @@ func TestTUIApproveThenInstall(t *testing.T) {
 		t.Fatalf("not installed in both clients: %+v", inst)
 	}
 	_ = m
+}
+
+// In a git repo the install form asks where to install, for every tool:
+// "This repo only" puts it in the repo's config of each client it supports.
+func TestTUIInstallForThisRepo(t *testing.T) {
+	for name, tc := range map[string]struct {
+		only []string
+		want map[string]string // client -> scope
+	}{
+		"both clients": {nil, map[string]string{clients.Claude: "project", clients.Codex: "project"}},
+		"codex only":   {[]string{clients.Codex}, map[string]string{clients.Codex: "project"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sandboxTUI(t)
+			// The repo can't be HOME: ~/.codex/config.toml would be its .codex/config.toml.
+			repo := filepath.Join(os.Getenv("HOME"), "repo")
+			if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+				t.Fatalf("git init: %v %s", err, out)
+			}
+			t.Chdir(repo)
+			_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh", Clients: tc.only})
+			press(t, start(t), key('i'), down, enter) // Install for: This repo only
+			inst := clients.Detect()["hi"]
+			if inst == nil {
+				t.Fatal("not installed")
+			}
+			got := map[string]string{}
+			for _, c := range inst.Clients() {
+				got[c] = inst.Scope(c)
+			}
+			if !maps.Equal(got, tc.want) {
+				t.Fatalf("installed at %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestTUIReviewChange(t *testing.T) {
