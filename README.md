@@ -42,8 +42,10 @@ brew install bartdegoede/tap/toolshed
 or `go install github.com/bartdegoede/toolshed/cmd/toolshed@latest` (Go
 1.26 or newer). Prebuilt binaries are on the
 [releases page](https://github.com/bartdegoede/toolshed/releases). You need
-[Claude Code](https://claude.com/claude-code) and/or
-[Codex](https://github.com/openai/codex) on your PATH. macOS and Linux.
+at least one of [Claude Code](https://claude.com/claude-code),
+[Codex](https://github.com/openai/codex) or
+[Antigravity CLI](https://antigravity.google/) (`agy`) on your PATH. macOS
+and Linux.
 
 ## Quickstart
 
@@ -89,7 +91,7 @@ The full docs are at **[toolshed.run](https://toolshed.run)**, and in
 
 ```sh
 just test       # unit tests
-just test-e2e   # end to end: real binary + real server, mock claude/codex
+just test-e2e   # end to end: real binary + real server, mock claude/codex/agy
 just lint
 ```
 
