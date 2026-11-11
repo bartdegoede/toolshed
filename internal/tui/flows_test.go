@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"maps"
 	"os"
 	"os/exec"
@@ -154,6 +155,92 @@ func TestTUIInstallForThisRepo(t *testing.T) {
 				t.Fatalf("installed at %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// Reinstalling keeps a tool where it is: accepting the form's default must
+// not add a copy at another scope, which Detect wouldn't show and uninstall
+// wouldn't remove.
+func TestTUIReinstallKeepsScopes(t *testing.T) {
+	for name, tc := range map[string]struct {
+		at   map[string]string // client -> scope before; empty: not installed
+		want map[string]string // client -> scopes found in the config files after
+	}{
+		"in this repo":   {map[string]string{clients.Claude: "project", clients.Codex: "project"}, map[string]string{clients.Claude: "project", clients.Codex: "project"}},
+		"all projects":   {map[string]string{clients.Claude: "user", clients.Codex: "user"}, map[string]string{clients.Claude: "user", clients.Codex: "user"}},
+		"local and user": {map[string]string{clients.Claude: "local", clients.Codex: "user"}, map[string]string{clients.Claude: "local", clients.Codex: "user"}},
+		"not installed":  {nil, map[string]string{clients.Claude: "user", clients.Codex: "user"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sandboxTUI(t)
+			repo := filepath.Join(os.Getenv("HOME"), "repo") // not HOME: see TestTUIInstallForThisRepo
+			if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+				t.Fatalf("git init: %v %s", err, out)
+			}
+			t.Chdir(repo)
+			_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh"})
+			for c, scope := range tc.at {
+				if err := clients.Register(c, "hi", clients.Config{Type: "stdio", Command: "sh"}, scope); err != nil {
+					t.Fatal(err)
+				}
+			}
+			press(t, start(t), key('i'), enter) // accept the default
+			if got := placements(t, "hi", repo); !maps.Equal(got, tc.want) {
+				t.Fatalf("registered at %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// placements reads every scope's config file for name, so a second copy
+// shows up as "user+project" instead of being hidden like Detect hides it.
+func placements(t *testing.T, name, repo string) map[string]string {
+	t.Helper()
+	home := os.Getenv("HOME")
+	found := map[string][]string{}
+	var claude struct {
+		MCPServers map[string]any `json:"mcpServers"`
+		Projects   map[string]struct {
+			MCPServers map[string]any `json:"mcpServers"`
+		} `json:"projects"`
+	}
+	readJSONFile(t, filepath.Join(home, ".claude.json"), &claude)
+	if _, ok := claude.MCPServers[name]; ok {
+		found[clients.Claude] = append(found[clients.Claude], "user")
+	}
+	for _, p := range claude.Projects {
+		if _, ok := p.MCPServers[name]; ok {
+			found[clients.Claude] = append(found[clients.Claude], "local")
+		}
+	}
+	var mcp struct {
+		MCPServers map[string]any `json:"mcpServers"`
+	}
+	readJSONFile(t, filepath.Join(repo, ".mcp.json"), &mcp)
+	if _, ok := mcp.MCPServers[name]; ok {
+		found[clients.Claude] = append(found[clients.Claude], "project")
+	}
+	for scope, path := range map[string]string{"user": filepath.Join(home, ".codex", "config.toml"), "project": filepath.Join(repo, ".codex", "config.toml")} {
+		if data, _ := os.ReadFile(path); strings.Contains(string(data), "[mcp_servers."+name+"]") {
+			found[clients.Codex] = append(found[clients.Codex], scope)
+		}
+	}
+	out := map[string]string{}
+	for c, scopes := range found {
+		slices.Sort(scopes)
+		out[c] = strings.Join(scopes, "+")
+	}
+	return out
+}
+
+func readJSONFile(t *testing.T, path string, v any) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil || json.Unmarshal(data, v) != nil {
+		t.Fatalf("reading %s: %v", path, err)
 	}
 }
 

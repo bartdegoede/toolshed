@@ -22,7 +22,8 @@ Codex only reads a project's config once you've trusted the project (start
 Tools with secrets are registered there as plain `toolshed exec …`, found on
 `PATH`, rather than your own toolshed's path, so they work for teammates who
 installed toolshed somewhere else. Claude Code's per-project "local" scope is
-kept when toolshed installs a tool again, and so is each client's scope.
+kept when toolshed installs a tool again, and so is each client's scope (in
+the TUI, "where it is now" is the form's default).
 
 ## How the config is written
 
