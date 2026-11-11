@@ -31,7 +31,7 @@ example. Installing again would give that tool's keyring secrets to a
 command you haven't looked at.
 
 So `toolshed install`, `toolshed update` and the TUI compare the registry
-with what Claude Code and Codex actually run: the command and its arguments,
+with what your clients actually run: the command and its arguments,
 the fixed `env`, which keyring entries the secrets come from, and a remote
 tool's URL and auth headers. If any of those changed, they show you the
 change and ask before installing again. Without a terminal they refuse

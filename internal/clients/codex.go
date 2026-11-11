@@ -17,9 +17,10 @@ import (
 // <repo>/.codex/config.toml, which Codex reads once the project is trusted.
 type codexClient struct{}
 
-func (codexClient) Name() string    { return Codex }
-func (codexClient) Label() string   { return "Codex" }
-func (codexClient) Available() bool { return onPath("codex") }
+func (codexClient) Name() string              { return Codex }
+func (codexClient) Label() string             { return "Codex" }
+func (codexClient) Available() bool           { return onPath("codex") }
+func (codexClient) Unsupported(Config) string { return "" }
 
 // Scope: Codex has no "local".
 func (codexClient) Scope(requested string) string {

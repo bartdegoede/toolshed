@@ -14,7 +14,7 @@ import (
 	"github.com/bartdegoede/toolshed/internal/shed"
 )
 
-// runImport adopts the servers Claude Code and Codex already have: it adds
+// runImport adopts the servers your clients already have: it adds
 // each one to the registry, moves the env vars that hold secrets into the
 // keyring, and re-registers the server through `toolshed exec`, so the
 // plain-text values leave the clients' config files.
@@ -52,12 +52,12 @@ func runImport(args []string) error {
 			case installed[n] != nil:
 				return fmt.Errorf("%s is already in your toolshed", n)
 			default:
-				return fmt.Errorf("neither Claude Code nor Codex has a server called %s", n)
+				return fmt.Errorf("none of %s has a server called %s", clients.Labels("or"), n)
 			}
 		}
 	}
 	if len(ims) == 0 {
-		fmt.Println(dim("Nothing to import: every server Claude Code and Codex have is already in your toolshed."))
+		fmt.Println(dim("Nothing to import: every server your clients have is already in your toolshed."))
 		return nil
 	}
 	if !secrets.Available() && !*dry {

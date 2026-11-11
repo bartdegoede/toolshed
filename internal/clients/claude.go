@@ -19,6 +19,7 @@ func (claudeClient) Label() string                 { return "Claude Code" }
 func (claudeClient) Available() bool               { return onPath("claude") }
 func (claudeClient) Scope(requested string) string { return requested }
 func (claudeClient) Notes(string) []string         { return nil }
+func (claudeClient) Unsupported(Config) string     { return "" }
 
 // detect returns user, local and project registrations in the order Claude
 // Code resolves a name defined at several scopes, checked against the real

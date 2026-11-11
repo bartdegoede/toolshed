@@ -13,7 +13,7 @@ examples. The keys:
 | `i` / `enter` | install (or approve, for a tool your agent added) |
 | `u` | uninstall |
 | `d` | delete one of your tools |
-| `m` | import the servers Claude Code and Codex already have |
+| `m` | import the servers your clients already have |
 | `q` | quit |
 
 Adding a tool asks what kind it is (an npm or Python package, a command, or a

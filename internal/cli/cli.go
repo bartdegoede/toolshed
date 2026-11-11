@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/bartdegoede/toolshed/internal/clients"
 	"github.com/bartdegoede/toolshed/internal/registry"
 	"github.com/bartdegoede/toolshed/internal/tui"
 )
@@ -41,7 +42,7 @@ var commands []command
 func init() {
 	commands = []command{
 		{"add", "<id> [flags] [-- command args...]", "Add a tool to your toolshed", runAdd},
-		{"import", "[<name>...] [-y] [--dry-run] [--no-install]", "Adopt the servers Claude Code and Codex already have", runImport},
+		{"import", "[<name>...] [-y] [--dry-run] [--no-install]", "Adopt the servers your clients already have", runImport},
 		{"install", "<id>... [--project] [--client c] [--set K=V] [-y]", "Install tools into Claude Code / Codex", runInstall},
 		{"uninstall", "<id>... [--purge]", "Remove tools from Claude Code / Codex", runUninstall},
 		{"update", "[<id>...] [-y]", "Re-register installed tools with current settings", runUpdate},
@@ -104,7 +105,7 @@ func Run(args []string) int {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintf(w, "%s — add MCP servers and tools to Claude Code and Codex\n\n", bold("toolshed"))
+	fmt.Fprintf(w, "%s — add MCP servers and tools to %s\n\n", bold("toolshed"), clients.Labels("and"))
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  toolshed                 Open the interactive toolshed")
 	for _, c := range visibleCommands() {

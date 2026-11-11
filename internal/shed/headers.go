@@ -128,6 +128,36 @@ func UnwrapHeaders(helper string) (HeadersCall, bool) {
 }
 
 // remoteConfig is BuildConfig for remote servers.
+// usesHeadersHelper reports whether BuildConfig registers e's headers
+// through a command (its header_cmd, or toolshed reading secrets from the
+// keyring), without BuildConfig's side effect of storing the secrets.
+func usesHeadersHelper(e *registry.Entry) bool {
+	if !e.IsRemote() {
+		return false
+	}
+	if e.HeaderCmd != "" {
+		return true
+	}
+	if len(e.Headers) == 0 || !secrets.Available() {
+		return false
+	}
+	for _, in := range e.Inputs {
+		if in.Secret {
+			return true
+		}
+	}
+	return false
+}
+
+// unsupportedBy says why client c can't take e as Install would register
+// it, or "". Unlike BuildConfig it touches nothing.
+func unsupportedBy(e *registry.Entry, c string) string {
+	if usesHeadersHelper(e) {
+		return clients.Get(c).Unsupported(clients.Config{Type: "http", URL: e.URL, HeadersHelper: "toolshed headers"})
+	}
+	return ""
+}
+
 func remoteConfig(e *registry.Entry, vals Values, scope string) (clients.Config, error) {
 	cfg := clients.Config{Type: "http", URL: e.URL, HeadersHelper: e.HeaderCmd}
 	if len(e.Headers) == 0 {

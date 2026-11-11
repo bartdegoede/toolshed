@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Mock `agy` (Antigravity CLI) for the e2e suite. toolshed only needs it on
+# PATH (to know Antigravity is installed): it edits
+# ~/.gemini/config/mcp_config.json itself, because `agy mcp add` would drop
+# the user's settings for a server. Anything else fails loudly, so the suite
+# notices if toolshed starts depending on it.
+set -euo pipefail
+[[ "${1:-}" == "--version" ]] && { echo "0.0.0-mock"; exit 0; }
+echo "mock agy: toolshed shouldn't need: agy $*" >&2
+exit 1

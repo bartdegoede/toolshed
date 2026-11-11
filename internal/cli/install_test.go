@@ -93,7 +93,7 @@ func TestInstallScopeFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := func(scope string) map[string]string {
-		return map[string]string{clients.Claude: scope, clients.Codex: scope}
+		return map[string]string{clients.Claude: scope, clients.Codex: scope, clients.Antigravity: scope}
 	}
 	steps := []struct {
 		args []string
@@ -120,5 +120,67 @@ func TestInstallScopeFlags(t *testing.T) {
 	}
 	if err := runInstall([]string{"hi", "--user", "--project"}); err == nil {
 		t.Fatal("--user with --project should be refused")
+	}
+}
+
+// Antigravity can't run a headers command: such a tool skips it and says
+// so, instead of failing everywhere. A repo install goes into its
+// .agents/mcp_config.json like any client's.
+func TestInstallSkipsWhatAntigravityCantDo(t *testing.T) {
+	home := sandbox(t)
+	repo := filepath.Join(home, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	t.Chdir(repo)
+	_ = registry.AddUserEntry(registry.Entry{ID: "local", Command: "sh"})
+	_ = registry.AddUserEntry(registry.Entry{ID: "hosted", URL: "https://h.example/mcp", HeaderCmd: "echo {}"})
+
+	out, err := captureStdout(t, func() error { return runInstall([]string{"local", "-y", "--project"}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "Antigravity") {
+		t.Fatalf("nothing to say about Antigravity:\n%s", out)
+	}
+	if got, want := clienttest.Placements(t, "local", repo), map[string]string{clients.Claude: "project", clients.Codex: "project", clients.Antigravity: "project"}; !maps.Equal(got, want) {
+		t.Fatalf("--project: %v, want %v", got, want)
+	}
+
+	out, err = captureStdout(t, func() error { return runInstall([]string{"hosted", "-y"}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "hosted isn't installed in Antigravity: it can't get a server's headers from a command") {
+		t.Fatalf("should say why Antigravity was skipped:\n%s", out)
+	}
+	if got, want := clienttest.Placements(t, "hosted", repo), map[string]string{clients.Claude: "user", clients.Codex: "user"}; !maps.Equal(got, want) {
+		t.Fatalf("headers helper: %v, want %v", got, want)
+	}
+
+	// Only Antigravity, and it can't: that's an error, not a silent no-op.
+	if err := runInstall([]string{"hosted", "-y", "--client", "antigravity"}); err == nil || !strings.Contains(err.Error(), "failed") {
+		t.Fatalf("expected a failure, got %v", err)
+	}
+}
+
+// A tool Antigravity had (static headers, no keyring) whose registry entry
+// now gets its headers from a command: reinstalling takes the stale copy out
+// of Antigravity, rather than leaving it there for good.
+func TestReinstallRemovesWhatAntigravityCantRunAnymore(t *testing.T) {
+	home := sandbox(t)
+	agy := filepath.Join(home, ".gemini", "config", "mcp_config.json")
+	_ = os.MkdirAll(filepath.Dir(agy), 0o755)
+	_ = os.WriteFile(agy, []byte(`{"mcpServers": {"hosted": {"serverUrl": "https://h.example/mcp", "headers": {"Authorization": "Bearer old"}}}}`), 0o600)
+	_ = registry.AddUserEntry(registry.Entry{ID: "hosted", URL: "https://h.example/mcp", HeaderCmd: "echo {}"})
+	out, err := captureStdout(t, func() error { return runInstall([]string{"hosted", "-y"}) })
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if !strings.Contains(out, "hosted was removed from Antigravity: it can't get a server's headers from a command") {
+		t.Fatalf("should say it was removed:\n%s", out)
+	}
+	if data, _ := os.ReadFile(agy); strings.Contains(string(data), "hosted") {
+		t.Fatalf("stale copy left in Antigravity:\n%s", data)
 	}
 }

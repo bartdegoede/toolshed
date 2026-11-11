@@ -180,12 +180,13 @@ func TestMCPWontMoveScope(t *testing.T) {
 	}
 	t.Chdir(repo)
 	_ = registry.AddUserEntry(registry.Entry{ID: "hi", Command: "sh"})
-	for _, c := range clients.All {
+	for _, c := range []string{clients.Claude, clients.Codex} {
 		if err := clients.Register(c, "hi", clients.Config{Type: "stdio", Command: "sh"}, "project"); err != nil {
 			t.Fatal(err)
 		}
 	}
 	inRepo := map[string]string{clients.Claude: "project", clients.Codex: "project"}
+	inRepoNow := map[string]string{clients.Claude: "project", clients.Codex: "project", clients.Antigravity: "project"}
 
 	out, isErr := callTool(t, cs, "install_server", map[string]any{"id": "hi", "scope": "user"})
 	if !isErr || !strings.Contains(out, "toolshed install hi --user") {
@@ -198,7 +199,7 @@ func TestMCPWontMoveScope(t *testing.T) {
 	if isErr {
 		t.Fatalf("reinstall where it is: %s", out)
 	}
-	if got := clienttest.Placements(t, "hi", repo); !maps.Equal(got, inRepo) {
+	if got := clienttest.Placements(t, "hi", repo); !maps.Equal(got, inRepoNow) { // and Antigravity, which didn't have it, gets it there too
 		t.Fatalf("reinstall without a scope should keep it in the repo, got %v", got)
 	}
 }

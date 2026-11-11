@@ -65,6 +65,14 @@ def codex_has(name):
         return False
 
 
+def agy_has(name):
+    try:
+        with open(os.path.join(HOME, ".gemini", "config", "mcp_config.json")) as f:
+            return name in json.load(f).get("mcpServers", {})
+    except FileNotFoundError:
+        return False
+
+
 def registry():
     with open(REGISTRY) as f:
         return f.read()
@@ -166,11 +174,13 @@ wait_for("approve: Yes clears pending in the registry", lambda: "pending: true" 
 tui.press("i")
 wait_for("install: registered with Claude Code", lambda: "agentic" in claude_servers())
 wait_for("install: registered with Codex", lambda: codex_has("agentic"))
+wait_for("install: registered with Antigravity", lambda: agy_has("agentic"))
 
 # Uninstall it.
 tui.press("u", "left", "enter")
 wait_for("uninstall: gone from Claude Code", lambda: "agentic" not in claude_servers())
 wait_for("uninstall: gone from Codex", lambda: not codex_has("agentic"))
+wait_for("uninstall: gone from Antigravity", lambda: not agy_has("agentic"))
 check("uninstall: still in the registry", "id: agentic" in registry())
 
 # Delete the other one (installed): it's uninstalled and removed.

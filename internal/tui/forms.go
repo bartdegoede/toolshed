@@ -91,7 +91,7 @@ func newAddForm(spec *addSpec, reg *registry.Registry, width int) *huh.Form {
 			huh.NewInput().
 				Title("ID").
 				DescriptionFunc(func() string {
-					return "The name Claude Code and Codex will see. Leave empty for " + orDash(registry.SuggestID(spec.Kind, spec.Source))
+					return "The name your clients will see. Leave empty for " + orDash(registry.SuggestID(spec.Kind, spec.Source))
 				}, &spec.Source).
 				PlaceholderFunc(func() string { return registry.SuggestID(spec.Kind, spec.Source) }, &spec.Source).
 				Value(&spec.ID).

@@ -17,6 +17,8 @@ expect() { # expect <desc> <exit-code> <cmd...>
 has() { grep -q -- "$2" <<<"$1" && ok "$3" || bad "$3" "$1"; }
 claude_cfg() { jq -c --arg n "$1" '.mcpServers[$n] // empty' "$HOME/.claude.json" 2>/dev/null; }
 codex_has() { grep -q "^\[mcp_servers.$1\]" "$HOME/.codex/config.toml" 2>/dev/null; }
+agy_cfg() { # agy_cfg <name> [file]: the server's Antigravity entry as compact JSON
+    jq -c --arg n "$1" '.mcpServers[$n] // empty' "${2:-$HOME/.gemini/config/mcp_config.json}" 2>/dev/null; }
 codex_cfg() { # codex_cfg <name> [file]: the server's table as JSON (via python's tomllib)
     python3 -c 'import sys,tomllib,json; print(json.dumps(tomllib.load(open(sys.argv[2],"rb")).get("mcp_servers",{}).get(sys.argv[1],{}),sort_keys=True,separators=(",",":")))' "$1" "${2:-$HOME/.codex/config.toml}" 2>/dev/null; }
 
@@ -46,24 +48,30 @@ has "$out" "notify" "lists the server's tools"
 section "install"
 expect "install without a required secret fails under -y" 1 "$TS" install greet -y
 expect "install greet" 0 "$TS" install greet -y --set NTFY_TOPIC=abc123
-has "$out" "claude, codex" "installed into both clients"
+has "$out" "claude, codex, antigravity" "installed into every client"
 cfg="$(claude_cfg greet)"
 has "$cfg" '"command":"ping-mcp"' "claude: runs ping-mcp"
 has "$cfg" '"NTFY_TOPIC":"abc123"' "claude: secret in env when the keyring is disabled"
 has "$cfg" '"NTFY_SERVER":"https://ntfy.example.com"' "claude: fixed env"
 codex_has greet && ok "codex: registered" || bad "codex: registered"
+has "$(agy_cfg greet)" '"command":"ping-mcp"' "antigravity: runs ping-mcp"
+has "$(agy_cfg greet)" '"NTFY_TOPIC":"abc123"' "antigravity: secret in env when the keyring is disabled"
 expect "install --set for an unknown input fails" 1 "$TS" install hi -y --set NOPE=1
 expect "install a remote tool" 0 "$TS" install docs -y
 has "$(claude_cfg docs)" '"type":"http"' "claude: remote server registered as http"
 grep -q 'url = "https://docs.example.com/mcp"' "$HOME/.codex/config.toml" && ok "codex: remote url" || bad "codex: remote url"
+has "$(agy_cfg docs)" '"serverUrl":"https://docs.example.com/mcp"' "antigravity: remote serverUrl"
 expect "install a remote tool with a headers helper" 0 "$TS" install github -y
 has "$(claude_cfg github)" '"headersHelper":"echo.*gh auth token' "claude: headersHelper"
 has "$(codex_cfg github)" '"http_headers_helper":"echo.*gh auth token' "codex: http_headers_helper"
+has "$out" "isn't installed in Antigravity: it can't get a server's headers from a command" "antigravity: skipped, and says why"
+[[ -z "$(agy_cfg github)" ]] && ok "antigravity: not registered" || bad "antigravity: not registered"
 expect "add a remote tool with a token header" 0 "$TS" add hdr --url https://hdr.example.com/mcp --header 'Authorization=Bearer ${HDR_TOKEN}' --secret HDR_TOKEN
 expect "a literal token in a header is refused" 2 "$TS" add lit --url https://lit.example.com/mcp --header 'Authorization=Bearer abc'
 expect "install it" 0 "$TS" install hdr -y --set HDR_TOKEN=t0k
 has "$(claude_cfg hdr)" '"headers":{"Authorization":"Bearer t0k"}' "claude: without a keyring the header is static"
 has "$(codex_cfg hdr)" '"http_headers":{"Authorization":"Bearer t0k"}' "codex: the same, as http_headers"
+has "$(agy_cfg hdr)" '"headers":{"Authorization":"Bearer t0k"}' "antigravity: the same, as headers"
 expect "uninstall it" 0 "$TS" remove hdr
 expect "install an unknown tool fails" 1 "$TS" install nope -y
 
@@ -71,13 +79,14 @@ section "list"
 expect "list" 0 "$TS" list
 has "$out" "Your tools" "user tools section"
 expect "list --json" 0 "$TS" list --json
-[[ "$(jq -r '.tools[] | select(.id=="greet") | .clients | join(",")' <<<"$out")" == "claude,codex" ]] && ok "json shows greet in both clients" || bad "json clients" "$out"
+[[ "$(jq -r '.tools[] | select(.id=="greet") | .clients | join(",")' <<<"$out")" == "claude,codex,antigravity" ]] && ok "json shows greet in every client" || bad "json clients" "$out"
 
 section "project scope"
 repo="$(mktemp -d)"; git -C "$repo" init -q
 ( cd "$repo" && "$TS" install hi -y --project >/dev/null 2>&1 )
 jq -e '.mcpServers.hi' "$repo/.mcp.json" >/dev/null 2>&1 && ok "--project writes .mcp.json" || bad "--project writes .mcp.json"
 has "$(codex_cfg hi "$repo/.codex/config.toml")" '"command":"ping-mcp"' "--project writes .codex/config.toml"
+has "$(agy_cfg hi "$repo/.agents/mcp_config.json")" '"command":"ping-mcp"' "--project writes .agents/mcp_config.json"
 out="$(cd "$repo" && "$TS" install hi -y --project 2>&1)"; has "$out" "trust the project" "and says Codex needs the project trusted"
 out="$(cd "$repo" && "$TS" list)"; has "$out" "(project)" "list shows the project scope"
 norepo="$(mktemp -d)"; pushd "$norepo" >/dev/null; expect "--project outside a repo fails" 1 "$TS" install hi -y --project; popd >/dev/null
@@ -91,6 +100,8 @@ s+="\n[mcp_servers.greet.tools.notify]\napproval_mode = \"approve\"\n"
 open(p,"w").write(s)
 PY
 jq '.mcpServers.greet.timeout = 9000' "$HOME/.claude.json" > "$HOME/.claude.tmp" && mv "$HOME/.claude.tmp" "$HOME/.claude.json"
+agy="$HOME/.gemini/config/mcp_config.json"
+jq '.mcpServers.greet.timeoutSeconds = 30 | .mcpServers.greet.enabledTools = ["notify"]' "$agy" > "$agy.tmp" && mv "$agy.tmp" "$agy"
 expect "update greet" 0 "$TS" update greet
 has "$(claude_cfg greet)" '"NTFY_TOPIC":"abc123"' "value survived update"
 has "$(claude_cfg greet)" '"timeout":9000' "claude: the user's timeout survived update"
@@ -98,6 +109,9 @@ gcfg="$(codex_cfg greet)"
 has "$gcfg" '"startup_timeout_sec":45' "codex: the user's timeout survived update"
 has "$gcfg" '"approval_mode":"approve"' "codex: per-tool approval survived update"
 grep -q "# mine" "$HOME/.codex/config.toml" && ok "codex: comments survived update" || bad "codex: comments survived update"
+acfg="$(agy_cfg greet)"
+has "$acfg" '"timeoutSeconds":30' "antigravity: the user's timeout survived update"
+has "$acfg" '"enabledTools":\["notify"\]' "antigravity: enabled tools survived update"
 
 section "registry changes under an installed tool"
 # Like a teammate editing a shared registry: what greet runs changes.
@@ -184,6 +198,7 @@ section "uninstall / remove"
 expect "uninstall greet" 0 "$TS" uninstall greet
 [[ -z "$(claude_cfg greet)" ]] && ok "gone from claude" || bad "gone from claude"
 codex_has greet && bad "gone from codex" || ok "gone from codex"
+[[ -z "$(agy_cfg greet)" ]] && ok "gone from antigravity" || bad "gone from antigravity"
 expect "remove a built-in example fails" 1 "$TS" remove ping
 expect "remove docs (installed → uninstalls first)" 0 "$TS" remove docs
 [[ -z "$(claude_cfg docs)" ]] && ok "removed tool was uninstalled" || bad "removed tool was uninstalled"

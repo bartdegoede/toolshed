@@ -10,7 +10,7 @@ the macOS Keychain, or the Secret Service on Linux. It's stored under service
 ## Command servers
 
 A server that gets its token from an environment variable is registered with
-Claude Code and Codex as a wrapper, not as the server itself:
+your clients as a wrapper, not as the server itself:
 
 ```sh
 toolshed exec jira --secret JIRA_TOKEN=jira -- jira-mcp --site acme
