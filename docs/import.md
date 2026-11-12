@@ -36,6 +36,8 @@ it runs, and its values masked. Press `enter`, tick which values are secrets
 
 ![The import screen](import.png)
 
+![Ticking which values are secrets](import-secrets.png)
+
 ## Details
 
 - Settings toolshed doesn't manage stay as they are: a Claude `timeout`, or

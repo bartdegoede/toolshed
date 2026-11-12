@@ -60,6 +60,12 @@ demo:
     vhs demo/demo.tape
     security delete-generic-password -s toolshed -a ping/NTFY_TOPIC >/dev/null 2>&1 || true
 
+# Re-take docs/import.png and docs/import-secrets.png (needs vhs; mock clients, throwaway HOME)
+[group('docs')]
+screenshots:
+    vhs demo/screenshots.tape
+    rm -rf /tmp/toolshed-screenshots /tmp/toolshed-screenshots.gif
+
 # Contract tests against the real claude and codex CLIs, in a temp HOME
 [group('test')]
 test-contract: build
