@@ -81,7 +81,8 @@ gh api repos/bartdegoede/homebrew-tap/contents/Casks/toolshed.rb -q .path   # ta
 - Releases build with Go `stable`; `go.mod` (1.26) is the `go install` minimum.
   Don't raise it, or `examples/ping-mcp/go.mod`, without a reason.
 - A failed release: fix on `main`, then tag the next patch version.
-- Re-record `docs/demo.gif` (`just demo`) when the TUI changes visibly.
+- Re-record `docs/demo.gif` (`just demo`) and the import screenshots
+  (`just screenshots`) when the TUI changes visibly.
 
 ## Docs
 
