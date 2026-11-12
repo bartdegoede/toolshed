@@ -170,23 +170,50 @@ check("approve: enter on the default No leaves it pending", "pending: true" in r
 tui.press("i", "left", "enter")
 wait_for("approve: Yes clears pending in the registry", lambda: "pending: true" not in registry())
 
-# Install it (nothing to ask: no inputs, not a git repo).
+# Install it. The first install asks which clients to use (every one on
+# PATH ticked): untick Antigravity. Then nothing else to ask (no inputs,
+# not a git repo).
+SETTINGS = os.path.join(os.environ["TOOLSHED_HOME"], "config.yaml")
+
+
+def settings():
+    try:
+        with open(SETTINGS) as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""
+
+
 tui.press("i")
+if tui.screen_has("Install tools into"):
+    ok("first install: asks which clients to use")
+    tui.press("down", "down", "space", "enter")
+else:
+    bad("first install: asks which clients to use", tui.text()[-300:])
 wait_for("install: registered with Claude Code", lambda: "agentic" in claude_servers())
 wait_for("install: registered with Codex", lambda: codex_has("agentic"))
-wait_for("install: registered with Antigravity", lambda: agy_has("agentic"))
+check("install: not in Antigravity, which was unticked", not agy_has("agentic"))
+check("first install: the choice is saved", "- claude" in settings() and "antigravity" not in settings(), settings())
 
 # Uninstall it.
 tui.press("u", "left", "enter")
 wait_for("uninstall: gone from Claude Code", lambda: "agentic" not in claude_servers())
 wait_for("uninstall: gone from Codex", lambda: not codex_has("agentic"))
-wait_for("uninstall: gone from Antigravity", lambda: not agy_has("agentic"))
 check("uninstall: still in the registry", "id: agentic" in registry())
+
+# c changes the choice: tick Antigravity again.
+tui.press("c")
+if tui.screen_has("Install tools into"):
+    tui.press("down", "down", "space", "enter")
+    wait_for("clients: Antigravity chosen again", lambda: "- antigravity" in settings())
+else:
+    bad("clients: c opens the choice", tui.text()[-300:])
 
 # Delete the other one (installed): it's uninstalled and removed.
 tui.press("down", "d", "left", "enter")
 wait_for("delete: gone from the registry", lambda: "id: bye" not in registry())
 wait_for("delete: uninstalled from Claude Code", lambda: "bye" not in claude_servers())
+wait_for("delete: uninstalled from Antigravity", lambda: not agy_has("bye"))
 
 # Import the hand-made server, unticking API_TOKEN (ticked by its name).
 tui.press("m")

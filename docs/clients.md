@@ -2,10 +2,33 @@
 
 <!-- summary: Claude Code, Codex and Antigravity: where tools are installed, and how -->
 
-toolshed installs every tool into Claude Code, Codex and Antigravity
-(Antigravity CLI, `agy`), unless the tool's `clients` list says otherwise or
-you pass `--client`. Each client is only used when it's on your `PATH`
-(`claude`, `codex`, `agy`).
+toolshed installs tools into Claude Code, Codex and Antigravity (Antigravity
+CLI, `agy`). Each client is only used when it's on your `PATH` (`claude`,
+`codex`, `agy`).
+
+## Choosing clients
+
+The first time you install a tool with more than one client on your `PATH`,
+toolshed asks which of them to use, and remembers the answer in
+`~/.toolshed/config.yaml`. That's per machine: your registry can be shared,
+the coding agents you use aren't.
+
+```sh
+toolshed clients               # which clients tools go into
+toolshed clients claude codex  # choose
+```
+
+In the TUI, press `c`. Until you choose, installs that can't ask (with `-y`,
+or by your agent) go into every client on your `PATH`.
+
+Leaving a client out doesn't remove anything from it:
+`toolshed clients` lists the tools still there, and
+`toolshed uninstall <id> --client <client>` removes one. Installing such a
+tool again still updates its copy there, so it doesn't go stale.
+
+`--client` installs into one client, whatever you chose. A tool's own
+`clients` list in the registry (a tool only Codex can run, say) narrows
+it further.
 
 ## Scope
 

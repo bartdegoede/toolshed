@@ -17,6 +17,7 @@ checks every installed tool and says how to fix what it finds:
 | an npm or PyPI package isn't pinned (a warning) | `toolshed upgrade <id>` |
 | a client has it at two scopes, and ignores one of them here (a warning) | `toolshed uninstall <id> --client <client> --scope <scope>` |
 | it doesn't start, or doesn't list its tools | `toolshed tools <id>` to see why |
+| `~/.toolshed/config.yaml` can't be read, so installs stop rather than guess the clients | `toolshed clients <name>...` |
 
 A tool at two scopes in one client is either a leftover (older versions of
 toolshed added a second copy when you installed a tool again at another
@@ -25,6 +26,9 @@ every project. The client uses only one of them here (see
 [Scope](clients.md#scope)), and doctor says which, and whether the other runs
 something different. The fix it suggests removes the copy that's ignored
 here; to keep that one instead, remove the other with `--scope`.
+
+It starts with your clients: which are on your `PATH`, and which of those
+you left out with `toolshed clients` (tools aren't installed into them).
 
 It also lists servers registered through toolshed that are no longer in your
 registry (`toolshed import <name>` brings them back), and how many other

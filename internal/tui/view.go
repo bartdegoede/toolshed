@@ -262,6 +262,8 @@ func (m model) renderDetail() string {
 			status = faintStyle.Render("not on this machine")
 		case !e.SupportsClient(c):
 			status = faintStyle.Render("not supported")
+		case contains(m.unused, c):
+			status = faintStyle.Render("not chosen (c to change)")
 		default:
 			status = dimStyle.Render("—")
 		}
@@ -352,7 +354,7 @@ func (m model) renderFooter() string {
 		if n := m.importable(); n > 0 {
 			keys = append(keys, "m", fmt.Sprintf("import %d", n))
 		}
-		text = keyHelp(append(keys, "q", "quit")...)
+		text = keyHelp(append(keys, "c", "clients", "q", "quit")...)
 	}
 	return faintStyle.Render(strings.Repeat("─", max(m.width, 1))) + "\n " + text
 }

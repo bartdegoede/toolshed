@@ -50,18 +50,26 @@ func runDoctor(args []string) error {
 	if len(avail) == 0 {
 		broken++
 	}
+	_, settingsErr := shed.LoadSettings()
+	if settingsErr != nil {
+		broken++ // install refuses to guess the clients
+	}
+	var chosen []string // nil: not chosen, every client on PATH
+	if names, ok := shed.DefaultClients(); ok {
+		chosen = names
+	}
 
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(map[string]any{
-			"clients": append([]string{}, avail...), "tools": report,
+			"clients": append([]string{}, avail...), "chosen": chosen, "tools": report,
 			"orphans": append([]string{}, orphans...), "unmanaged": append([]string{}, unmanaged...),
 		}); err != nil {
 			return err
 		}
 	} else {
-		printDoctor(avail, report, orphans, unmanaged)
+		printDoctor(avail, chosen, settingsErr, report, orphans, unmanaged)
 	}
 	if broken > 0 {
 		return fmt.Errorf("%d problem%s to fix", broken, plural(broken))
@@ -69,16 +77,22 @@ func runDoctor(args []string) error {
 	return nil
 }
 
-func printDoctor(avail []string, report []shed.Health, orphans, unmanaged []string) {
+func printDoctor(avail, chosen []string, settingsErr error, report []shed.Health, orphans, unmanaged []string) {
 	for _, c := range clients.All {
-		if contains(avail, c) {
+		switch {
+		case contains(avail, c) && chosen != nil && !contains(chosen, c):
+			fmt.Printf("%s %s %s\n", dim("·"), c, dim("not chosen: tools aren't installed into it (toolshed clients)"))
+		case contains(avail, c):
 			fmt.Printf("%s %s\n", green("✓"), c)
-		} else {
+		default:
 			fmt.Printf("%s %s %s\n", dim("·"), c, dim("not installed"))
 		}
 	}
 	if len(avail) == 0 {
 		fmt.Printf("%s none of %s is on PATH\n", red("✗"), clients.Labels("or"))
+	}
+	if settingsErr != nil {
+		fmt.Printf("%s %v\n  %s %s\n", red("✗"), settingsErr, dim("→"), bold("toolshed clients <name>..."))
 	}
 	fmt.Println()
 

@@ -34,6 +34,9 @@ API tokens. So the agent's reach is limited on purpose:
   where it is; asking for another scope is refused, because moving a tool
   out of the repository changes config your teammates may share. You move
   it with `toolshed install <id> --user` or `--project`.
+- **It can't choose clients.** `install_server` installs into the clients
+  you chose with `toolshed clients` (or every one on your `PATH`, until you
+  do).
 - **It can't accept registry changes.** If a tool's registry entry now runs
   something different from what's installed, the agent can't start or
   re-install it; you review the change with `toolshed update <id>`.

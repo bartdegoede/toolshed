@@ -93,6 +93,15 @@ func Labels(conj string) string {
 	return joinList(labels, conj)
 }
 
+// LabelList is Labels for some clients: "Claude Code and Codex".
+func LabelList(names []string, conj string) string {
+	labels := make([]string, len(names))
+	for i, c := range names {
+		labels[i] = Label(c)
+	}
+	return joinList(labels, conj)
+}
+
 // Names is Labels with client names: "claude or codex".
 func Names(conj string) string {
 	return joinList(All, conj)

@@ -30,17 +30,22 @@ registry, starts it and lists its tools. Pick one kind:
 | `--install` | install it right away |
 | `--force` | replace a tool with the same id |
 
-`toolshed install <id>...` installs into Claude Code, Codex and Antigravity:
-for every project, or, for a tool that's installed already, again where it
-is. See [Scope](clients.md#scope).
+`toolshed install <id>...` installs into the clients you chose (asked the
+first time; see [Choosing clients](clients.md#choosing-clients)): for every
+project, or, for a tool that's installed already, again where it is. See
+[Scope](clients.md#scope).
 
 | Flag | |
 | --- | --- |
-| `--project` | this repository only: `.mcp.json` and `.codex/config.toml` |
+| `--project` | this repository only: `.mcp.json`, `.codex/config.toml` and `.agents/mcp_config.json` |
 | `--user` | every project (moves a tool that's in the repository) |
-| `--client claude\|codex\|antigravity` | only one of them |
+| `--client claude\|codex\|antigravity` | only this client, whatever you chose |
 | `--set KEY=VALUE` | a value, instead of being asked (repeatable) |
 | `-y` | never ask; values come from `--set` and the environment |
+
+`toolshed clients [<name>...]` shows which clients tools go into, or
+chooses them: `toolshed clients claude codex`. Tools already installed stay
+where they are.
 
 `toolshed import [<name>...]` adopts the servers your clients
 already have. `-y` uses the guessed secrets, `--dry-run` only shows what it

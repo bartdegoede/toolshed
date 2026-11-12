@@ -27,6 +27,11 @@ just lint
   registry file.
 - Label PRs (security, enhancement, bug, documentation, dependencies): the
   release notes are grouped by those labels (.github/release.yml).
+- Which clients an install writes to is shed.Targets: `--client`, or else
+  the clients chosen with `toolshed clients` (~/.toolshed/config.yaml, per
+  machine, never in the registry) plus any that have the tool already, so
+  a reinstall never leaves a stale copy. Front ends that can ask
+  (shed.NeedsClientChoice) ask once; `-y` and `toolshed mcp` never ask.
 - One adapter per client in internal/clients. Codex: toolshed edits
   config.toml itself (codextoml.go), only the keys it owns, because
   `codex mcp add` resets a server's table. Antigravity: the same for its

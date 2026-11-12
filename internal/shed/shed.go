@@ -54,7 +54,7 @@ func Resolve(e *registry.Entry, inst *clients.Installation, overrides Values) (V
 type InstallOptions struct {
 	Scope   string            // "user" (default), "local" or "project"; each client uses its nearest (Codex has no "local")
 	Scopes  map[string]string // per-client scopes, overriding Scope
-	Clients []string          // targets; empty means every available client the entry supports
+	Clients []string          // targets; empty means your chosen clients (DefaultClients) plus the ones that have the tool already
 }
 
 func (o InstallOptions) scopeFor(client string) string {
@@ -94,7 +94,7 @@ func Moves(e *registry.Entry, inst *clients.Installation, opts InstallOptions) [
 		opts.Scope = "user"
 	}
 	var out []Move
-	for _, c := range Targets(e, opts) {
+	for _, c := range Targets(e, inst, opts) {
 		if from, to := inst.Scope(c), opts.scopeFor(c); from != "" && to != "" && from != to {
 			out = append(out, Move{Client: c, From: from, To: to})
 		}
@@ -108,15 +108,21 @@ type Result struct {
 	Notes   []string // things the user should know
 }
 
-// Targets returns the clients an install would write to.
-func Targets(e *registry.Entry, opts InstallOptions) []string {
+// Targets returns the clients an install would write to: the ones asked
+// for, or else your chosen clients plus those that have the tool already
+// (inst), so installing it again updates every copy instead of leaving a
+// stale one in a client you've since left out.
+func Targets(e *registry.Entry, inst *clients.Installation, opts InstallOptions) []string {
 	want := opts.Clients
 	if len(want) == 0 {
-		want = clients.All
+		want, _ = DefaultClients()
+		if inst != nil {
+			want = append(append([]string(nil), want...), inst.Clients()...)
+		}
 	}
 	var out []string
-	for _, c := range want {
-		if !e.SupportsClient(c) || !clients.Available(c) {
+	for _, c := range clients.All { // display order, each once
+		if !contains(want, c) || !e.SupportsClient(c) || !clients.Available(c) {
 			continue
 		}
 		out = append(out, c)
@@ -133,8 +139,18 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error
 	if err := CheckApproved(e); err != nil {
 		return Result{}, err
 	}
-	targets := Targets(e, opts)
+	if len(opts.Clients) == 0 {
+		// A broken settings file mustn't quietly mean "every client".
+		if _, err := LoadSettings(); err != nil {
+			return Result{}, err
+		}
+	}
+	before := clients.Detect()[e.ID]
+	targets := Targets(e, before, opts)
 	if len(targets) == 0 {
+		if names, chosen := DefaultClients(); chosen && len(opts.Clients) == 0 {
+			return Result{}, fmt.Errorf("none of the clients you chose (%s) is on PATH, or %s supports none of them: change them with `toolshed clients`", clients.LabelList(names, "or"), e.ID)
+		}
 		return Result{}, fmt.Errorf("no target client: install %s (or check %s's clients list)", clients.Labels("or"), e.ID)
 	}
 	if err := CheckCommand(e); err != nil {
@@ -154,7 +170,6 @@ func Install(e *registry.Entry, vals Values, opts InstallOptions) (Result, error
 			return Result{}, fmt.Errorf("%s: no OS keyring, so %s would be written into the repository's config in plain text; install it for your user instead", e.ID, in.Key)
 		}
 	}
-	before := clients.Detect()[e.ID]
 	moves := Moves(e, before, opts)
 	var res Result
 	var errs []error

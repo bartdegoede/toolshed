@@ -238,6 +238,41 @@ func (f *installForm) collected() shed.Values {
 	return out
 }
 
+// newClientsForm asks which clients tools are installed into. It starts
+// with your current choice, or every client on PATH.
+func newClientsForm(choice *[]string, avail []string, width int) *huh.Form {
+	chosen, ok := shed.DefaultClients()
+	if !ok {
+		chosen = avail
+	}
+	*choice = nil
+	var opts []huh.Option[string]
+	for _, c := range clients.All {
+		label := clients.Label(c)
+		if !contains(avail, c) {
+			label += " (not on this machine)"
+		}
+		on := contains(chosen, c)
+		if on {
+			*choice = append(*choice, c)
+		}
+		opts = append(opts, huh.NewOption(label, c).Selected(on))
+	}
+	return huh.NewForm(huh.NewGroup(
+		huh.NewMultiSelect[string]().
+			Title("Install tools into").
+			Description("toolshed remembers this. Tools already installed stay where they are; press c to change it later.").
+			Options(opts...).
+			Value(choice).
+			Validate(func(v []string) error {
+				if len(v) == 0 {
+					return errors.New("choose at least one")
+				}
+				return nil
+			}),
+	)).WithTheme(formTheme()).WithWidth(width).WithShowHelp(false)
+}
+
 func newConfirmForm(title, desc string, ok *bool, width int) *huh.Form {
 	return huh.NewForm(huh.NewGroup(
 		huh.NewConfirm().Title(title).Description(desc).Affirmative("Yes").Negative("No").Value(ok),

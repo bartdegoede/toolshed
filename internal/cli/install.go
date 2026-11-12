@@ -19,7 +19,7 @@ import (
 
 func runInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	project := fs.Bool("project", false, "install for this repository only (.mcp.json for Claude Code, .codex/config.toml for Codex)")
+	project := fs.Bool("project", false, "install for this repository only (.mcp.json for Claude Code, .codex/config.toml for Codex, .agents/mcp_config.json for Antigravity)")
 	user := fs.Bool("user", false, "install for every project (the default for a new tool)")
 	client := fs.String("client", "", "only install into "+clients.Names("or"))
 	yes := fs.Bool("y", false, "never prompt; take values from --set and the environment")
@@ -52,7 +52,12 @@ func runInstall(args []string) error {
 		}
 		opts.Clients = []string{*client}
 	}
-	interactive := !*yes && term.IsTerminal(int(os.Stdin.Fd()))
+	interactive := !*yes && stdinIsTerminal()
+	if interactive && len(opts.Clients) == 0 && shed.NeedsClientChoice() {
+		if err := chooseClients(); err != nil {
+			return err
+		}
+	}
 
 	reg, err := loadRegistry()
 	if err != nil {
@@ -147,6 +152,9 @@ func hasInput(e *registry.Entry, key string) bool {
 }
 
 var stdin = bufio.NewReader(os.Stdin)
+
+// stdinIsTerminal is swapped in tests, to drive prompts through stdin.
+var stdinIsTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
 
 func prompt(e *registry.Entry, in registry.Input) (string, error) {
 	label := in.Label
